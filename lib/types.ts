@@ -16,7 +16,7 @@ export interface Target {
 
 // ---------------------------------------------------------------- 能力评测
 
-export type Category = "reasoning" | "reading" | "coding" | "knowledge" | "hallucination" | "instruction";
+export type Category = "reasoning" | "reading" | "coding" | "knowledge" | "hallucination" | "instruction" | "inference";
 
 export interface Question {
   id: string;
@@ -139,13 +139,17 @@ export type Envelope<T> =
 // ---------------------------------------------------------------- 全面检测
 
 /**
- * 检测按顺序分四步：
- * detect  指纹检测：中转站有没有换模型、吞指令、假流式
- * basic   基础测试：推理、阅读、代码、知识、指令遵循
- * candy   糖果测试：改过条件的熟题、不存在的文献，测幻觉
- * pelican 鹈鹕测试：画一只骑自行车的鹈鹕，不计分
+ * 检测按顺序分五步：
+ * detect      指纹检测：中转站有没有换模型、吞指令、假流式
+ * basic       基础测试：推理、阅读、代码、知识、指令遵循
+ * candy       糖果测试：改过条件的熟题、不存在的文献，测幻觉
+ * colorblind  综合推理：知识 + 多步反证 + 抗诱导的复合题，单独成步
+ * pelican     鹈鹕测试：画一只骑自行车的鹈鹕，不计分
+ *
+ * 前四步都会产出得分，但综合分只取 指纹 30% + 基础 40% + 糖果 30%；
+ * colorblind 单独展示，不计入综合分（2026.10.3 起）。
  */
-export type Stage = "detect" | "basic" | "candy" | "pelican";
+export type Stage = "detect" | "basic" | "candy" | "colorblind" | "pelican";
 
 /** 一次全面检测的完整报告 */
 export interface Report {
@@ -156,11 +160,13 @@ export interface Report {
   startedAt: string;
   durationMs: number;
   stages: Stage[];
-  /** 综合分 0-100 = 指纹 30% + 基础 40% + 糖果 30%（只算有结果的部分）；都没有时为 null */
+  /** 综合分 0-100 = 指纹 30% + 基础 40% + 糖果 30%（只算有结果的部分）；都没有时为 null。综合推理不计入 */
   score: number | null;
   detect?: DetectResult;
   basic?: BenchResult;
   candy?: BenchResult;
+  /** 综合推理测试结果，独立于综合分 */
+  colorblind?: BenchResult;
   pelican?: PelicanResult;
   /** 某一步整体失败或被跳过的原因 */
   errors: Partial<Record<Stage, string>>;

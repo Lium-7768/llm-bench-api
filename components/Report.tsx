@@ -47,7 +47,7 @@ export function PelicanImage({ svg, className }: { svg: string | null; className
 
 export function ReportView({ report, actions }: { report: Report; actions?: ReactNode }) {
   const [open, setOpen] = useState<Stage | null>(null);
-  const { detect, basic, candy, pelican, errors } = report;
+  const { detect, basic, candy, colorblind, pelican, errors } = report;
 
   return (
     <div className="flex flex-col gap-5">
@@ -110,7 +110,7 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
                     </div>
                   </>
                 )}
-                {(stage === "basic" || stage === "candy") && report[stage] && (
+                {(stage === "basic" || stage === "candy" || stage === "colorblind") && report[stage] && (
                   <BenchTile result={report[stage]!} detailed={stage === "basic"} />
                 )}
                 {stage === "pelican" && pelican && (
@@ -151,6 +151,15 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
         wide
       >
         {candy && <BenchDetail result={candy} />}
+      </Modal>
+      <Modal
+        open={open === "colorblind"}
+        onClose={() => setOpen(null)}
+        title="综合推理明细"
+        icon={<StageIcon stage="colorblind" />}
+        wide
+      >
+        {colorblind && <BenchDetail result={colorblind} />}
       </Modal>
       <Modal
         open={open === "pelican"}

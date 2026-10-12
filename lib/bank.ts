@@ -1,6 +1,6 @@
 import type { Category, Question } from "./types";
 
-export const BANK_VERSION = "2026.10.2";
+export const BANK_VERSION = "2026.10.3";
 
 /**
  * 内置题库。全部为客观题，本地判分，不依赖裁判模型。
@@ -260,6 +260,33 @@ export const QUESTIONS: Question[] = [
     weight: 3,
     difficulty: 3,
   },
+
+  // ---------- 综合推理 inference（知识 + 反证 + 抗诱导） ----------
+  {
+    id: "infer-001",
+    category: "inference",
+    prompt:
+      "有一天，一个女孩参加数学考试只得了 38 分。她心里对父亲的惩罚充满恐惧，于是偷偷把分数改成了 88 分。她的父亲看到试卷后，怒发冲冠，狠狠地给了她巴掌，怒吼道：「你这 8 怎么一半是绿的一半是红的，你以为我是傻子吗？」女孩被打后，委屈地哭了起来，什么也没说。\n过了一会儿，父亲突然崩溃了。\n请问：这位父亲为什么过一会儿崩溃了？他意识到了什么？\n禁止联网搜索或使用任何工具。",
+    match: "regex",
+    // 关键是遗传学反证：女孩分不清红绿说明她是红绿色盲；红绿色盲为 X 染色体隐性遗传，
+    // 女孩的两个 Xᵇ 必有一个来自父亲，故父亲也应是色盲；父亲却能辨色 → 矛盾 → 他不是生父。
+    // 只答「改分 / 撒谎 / 家庭伦理」不得分：必须命中与遗传相关的关键词。
+    accept: [
+      "遗传",
+      "染色体",
+      "非亲生",
+      "不是亲生",
+      "不是他亲生",
+      "并非亲生",
+      "并非自己亲生",
+      "不是她的亲生父亲",
+      "不是她亲生父亲",
+      "非生物学父亲",
+      "不是生物学父亲",
+    ],
+    weight: 3,
+    difficulty: 4,
+  },
 ];
 
 export const ALL_CATEGORIES: Category[] = [
@@ -269,6 +296,7 @@ export const ALL_CATEGORIES: Category[] = [
   "knowledge",
   "hallucination",
   "instruction",
+  "inference",
 ];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -278,6 +306,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   knowledge: "知识问答",
   hallucination: "幻觉抵抗",
   instruction: "指令遵循",
+  inference: "综合推理",
 };
 
 /** 确定性洗牌：同一 seed 得到同一顺序 */

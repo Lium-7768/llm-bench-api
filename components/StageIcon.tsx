@@ -1,4 +1,4 @@
-import { Bird, BrainCircuit, Candy, Fingerprint } from "lucide-react";
+import { Bird, BrainCircuit, Candy, Dna, Fingerprint } from "lucide-react";
 import type { Stage } from "@/lib/types";
 
 export const STAGE_INFO: Record<Stage, { name: string; desc: string; Icon: typeof Bird; color: string; hex: string }> =
@@ -23,6 +23,13 @@ export const STAGE_INFO: Record<Stage, { name: string; desc: string; Icon: typeo
       Icon: Candy,
       color: "text-cyan",
       hex: "#0891b2",
+    },
+    colorblind: {
+      name: "综合推理",
+      desc: "知识 + 多步反证 + 抗诱导的复合题，单独一步，不计入综合分",
+      Icon: Dna,
+      color: "text-amber",
+      hex: "#d97706",
     },
     pelican: {
       name: "鹈鹕测试",

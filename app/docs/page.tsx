@@ -64,7 +64,7 @@ const PY_SYNC = `import requests
 r = requests.post(
     "https://<本站域名>/api/v1/check",
     headers={"Authorization": f"Bearer {api_key}"},
-    json={"baseUrl": "https://api.moonshot.cn/v1", "model": "<模型 ID>", "stages": ["detect", "basic", "candy"]},
+    json={"baseUrl": "https://api.moonshot.cn/v1", "model": "<模型 ID>", "stages": ["detect", "basic", "candy", "colorblind"]},
     timeout=300,
 )
 body = r.json()
@@ -78,7 +78,7 @@ const RESPONSE = `{
   "data": {
     "id": "6f1c…",
     "model": "deepseek-chat",
-    "stages": ["detect", "basic", "candy", "pelican"],
+    "stages": ["detect", "basic", "candy", "colorblind", "pelican"],
     "score": 91.2,                 // 综合分 = 指纹 30% + 基础 40% + 糖果 30%
     "detect": { "score": 94, "verdict": "clean", "checks": [ … ] },
     "basic": {
@@ -87,7 +87,8 @@ const RESPONSE = `{
       "categories": [{ "category": "reasoning", "label": "逻辑推理", "percent": 88.9, "passed": 4, "total": 5 }],
       "answers": [{ "questionId": "reason-001", "output": "鸡=23,兔=12", "passed": true, "latencyMs": 812 }]
     },
-    "candy": { "score": 83.3, … },  // 结构同 basic
+    "candy": { "score": 83.3, … },        // 结构同 basic
+    "colorblind": { "score": 100, … },    // 结构同 basic，单独展示，不计入综合分
     "pelican": { "svg": "<svg …>…</svg>", "raw": "…" },
     "errors": {}                   // 某一步失败或被跳过的原因
   },
@@ -168,8 +169,8 @@ export default function DocsPage() {
           </table>
         </div>
         <p>
-          <code>/check</code> 另有 <code>stages</code>（detect 指纹检测、basic 基础测试、candy 糖果测试、pelican
-          鹈鹕测试，默认全部，按这个顺序执行）、
+          <code>/check</code> 另有 <code>stages</code>（detect 指纹检测、basic 基础测试、candy 糖果测试、colorblind
+          综合推理、pelican 鹈鹕测试，默认全部，按这个顺序执行）、
           <code>limit</code>（基础测试题量）、<code>seed</code>（默认 42，相同则题目和顺序相同）、
           <code>temperature</code>、<code>concurrency</code>（1-8，默认 3）、<code>timeoutMs</code>（单题超时）、
           <code>stream</code>。

@@ -48,6 +48,7 @@ export function hasError(r: Report): boolean {
     Object.keys(r.errors ?? {}).length > 0 ||
     (r.basic?.failedCalls ?? 0) > 0 ||
     (r.candy?.failedCalls ?? 0) > 0 ||
+    (r.colorblind?.failedCalls ?? 0) > 0 ||
     r.detect?.verdict === "inconclusive"
   );
 }
@@ -56,7 +57,7 @@ export function hasError(r: Report): boolean {
 export function errorReason(r: Report): string {
   const stageError = Object.values(r.errors ?? {})[0];
   if (stageError) return stageError;
-  const bench = [r.basic, r.candy].find((b) => b?.error || (b?.failedCalls ?? 0) > 0);
+  const bench = [r.basic, r.candy, r.colorblind].find((b) => b?.error || (b?.failedCalls ?? 0) > 0);
   if (bench?.error) return bench.error;
   if (bench) return `${bench.failedCalls} 题调用失败`;
   if (r.detect?.verdict === "inconclusive")

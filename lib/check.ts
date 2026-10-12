@@ -7,13 +7,16 @@ import { PELICAN_PROMPT, runPelican } from "./pelican";
 import type { AnswerResult, BenchResult, Category, CheckResult, Report, Stage, Target } from "./types";
 
 /** 执行顺序 */
-export const ALL_STAGES: Stage[] = ["detect", "basic", "candy", "pelican"];
+export const ALL_STAGES: Stage[] = ["detect", "basic", "candy", "colorblind", "pelican"];
 
-/** 糖果测试的题目，其余维度都属于基础测试 */
+/** 糖果测试的题目 */
 const CANDY: Category[] = ["hallucination"];
-const BASIC: Category[] = ALL_CATEGORIES.filter((c) => !CANDY.includes(c));
+/** 综合推理单独成步，不计入基础/糖果 */
+const INFERENCE: Category[] = ["inference"];
+/** 基础测试的题目：除糖果和综合推理维度外的全部 */
+const BASIC: Category[] = ALL_CATEGORIES.filter((c) => !CANDY.includes(c) && !INFERENCE.includes(c));
 
-/** 综合分权重；鹈鹕没有标准答案，不计分 */
+/** 综合分权重；鹈鹕没有标准答案、综合推理单独展示，都不计分 */
 const WEIGHTS: Partial<Record<Stage, number>> = { detect: 0.3, basic: 0.4, candy: 0.3 };
 
 /** 整体时限：留出余量，避免函数被平台强制终止（Vercel 上限 300 秒） */
@@ -41,14 +44,14 @@ export interface StagePlan {
 export type CheckEvent =
   | { type: "start"; stages: StagePlan[]; pelicanPrompt: string }
   | { type: "stage.start"; stage: Stage }
-  | { type: "answer"; stage: "basic" | "candy"; done: number; total: number; answer: AnswerResult }
+  | { type: "answer"; stage: "basic" | "candy" | "colorblind"; done: number; total: number; answer: AnswerResult }
   | { type: "check"; stage: "detect"; check: CheckResult }
   | { type: "stage.done"; stage: Stage; score: number | null }
   | { type: "stage.error"; stage: Stage; message: string }
   | { type: "result"; result: Report };
 
 /**
- * 全面检测：指纹 → 基础 → 糖果 → 鹈鹕，按顺序执行，
+ * 全面检测：指纹 → 基础 → 糖果 → 综合推理 → 鹈鹕，按顺序执行，
  * 每一步内部仍然并发。逐步产出事件，最后产出合并报告。
  */
 export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> {
@@ -70,6 +73,7 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
 
   const basicQuestions = selectQuestions({ categories: BASIC, limit: opts.limit, seed });
   const candyQuestions = selectQuestions({ categories: CANDY, seed });
+  const colorblindQuestions = selectQuestions({ categories: INFERENCE, seed });
   const asItems = (qs: typeof basicQuestions) => qs.map((q) => ({ id: q.id, label: q.prompt }));
   const plans: Record<Stage, StagePlan> = {
     detect: {
@@ -79,6 +83,7 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
     },
     basic: { id: "basic", total: basicQuestions.length, items: asItems(basicQuestions) },
     candy: { id: "candy", total: candyQuestions.length, items: asItems(candyQuestions) },
+    colorblind: { id: "colorblind", total: colorblindQuestions.length, items: asItems(colorblindQuestions) },
     pelican: { id: "pelican", total: 1, items: [{ id: "pelican", label: PELICAN_PROMPT }] },
   };
 
@@ -102,12 +107,14 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
         for await (const check of events) yield { type: "check", stage, check };
         report.detect = await task;
         yield { type: "stage.done", stage, score: report.detect.score };
-      } else if (stage === "basic" || stage === "candy") {
+      } else if (stage === "basic" || stage === "candy" || stage === "colorblind") {
         let result: BenchResult | undefined;
+        const categories = stage === "basic" ? BASIC : stage === "candy" ? CANDY : INFERENCE;
         for await (const e of runBench({
           ...opts,
           seed,
-          categories: stage === "basic" ? BASIC : CANDY,
+          categories,
+          // 只有基础测试受 limit 限制；糖果和综合推理总是全做
           limit: stage === "basic" ? opts.limit : undefined,
           budgetMs: remaining,
         })) {

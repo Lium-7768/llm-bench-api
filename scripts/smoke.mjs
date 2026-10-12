@@ -14,11 +14,11 @@ const checks = [
     },
   ],
   [
-    "API 索引列出三种协议和四个步骤",
+    "API 索引列出三种协议和五个步骤",
     async () => {
       const { data } = await json("GET", "/api/v1", 200);
       expect(data.protocols?.length === 3, `protocols=${JSON.stringify(data.protocols)}`);
-      expect(data.stages?.join() === "detect,basic,candy,pelican", `stages=${JSON.stringify(data.stages)}`);
+      expect(data.stages?.join() === "detect,basic,candy,colorblind,pelican", `stages=${JSON.stringify(data.stages)}`);
     },
   ],
   [

@@ -91,8 +91,8 @@ export function GET() {
         post: {
           summary: "全面检测",
           description:
-            "按顺序执行四步：detect 指纹检测 → basic 基础测试 → candy 糖果测试 → pelican 鹈鹕测试，返回 Report。" +
-            "综合分 = 指纹 30% + 基础 40% + 糖果 30%（只算有结果的部分），鹈鹕不计分。" +
+            "按顺序执行五步：detect 指纹检测 → basic 基础测试 → candy 糖果测试 → colorblind 综合推理 → pelican 鹈鹕测试，返回 Report。" +
+            "综合分 = 指纹 30% + 基础 40% + 糖果 30%（只算有结果的部分），综合推理与鹈鹕不计入综合分。" +
             "stream=true 时返回 text/event-stream：start → 每一步依次 stage.start、若干 answer 或 check、stage.done（或 stage.error）→ result。",
           requestBody: {
             content: json({
@@ -101,7 +101,7 @@ export function GET() {
                 ...target.properties,
                 stages: {
                   type: "array",
-                  items: { type: "string", enum: ["detect", "basic", "candy", "pelican"] },
+                  items: { type: "string", enum: ["detect", "basic", "candy", "colorblind", "pelican"] },
                   description: "要跑的步骤，默认全部，总是按固定顺序执行",
                 },
                 limit: { type: "integer", description: "基础测试题目数上限，默认全部" },

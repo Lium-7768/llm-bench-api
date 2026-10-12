@@ -16,7 +16,7 @@ import { PRESETS } from "@/lib/presets";
 import { streamApi } from "@/lib/web/api";
 import { addHistory } from "@/lib/web/storage";
 
-const STAGES: Stage[] = ["detect", "basic", "candy", "pelican"];
+const STAGES: Stage[] = ["detect", "basic", "candy", "colorblind", "pelican"];
 
 interface Run {
   plans: StagePlan[];

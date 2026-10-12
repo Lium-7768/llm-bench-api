@@ -12,11 +12,12 @@ export function OPTIONS() {
 export function GET() {
   return ok({
     name: "LLM Bench API",
-    description: "大模型接口全面检测：指纹检测、基础测试、糖果测试、鹈鹕测试。服务端无状态，不保存任何数据和密钥。",
+    description:
+      "大模型接口全面检测：指纹检测、基础测试、糖果测试、综合推理、鹈鹕测试。服务端无状态，不保存任何数据和密钥。",
     bankVersion: BANK_VERSION,
     totalQuestions: QUESTIONS.length,
     protocols: ["openai", "anthropic", "gemini"],
-    stages: ["detect", "basic", "candy", "pelican"],
+    stages: ["detect", "basic", "candy", "colorblind", "pelican"],
     endpoints: [
       { method: "GET", path: "/api/v1", desc: "本索引" },
       { method: "GET", path: "/api/v1/openapi", desc: "OpenAPI 3.1 描述" },
@@ -25,7 +26,7 @@ export function GET() {
       {
         method: "POST",
         path: "/api/v1/check",
-        desc: "全面检测：指纹 → 基础 → 糖果 → 鹈鹕，按顺序执行；stream=true 时以 SSE 推送进度",
+        desc: "全面检测：指纹 → 基础 → 糖果 → 综合推理 → 鹈鹕，按顺序执行；stream=true 时以 SSE 推送进度",
       },
     ],
     auth: "Authorization: Bearer <被测接口的 API Key>，仅在单次请求中转发给上游",
