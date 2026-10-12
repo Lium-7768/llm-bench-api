@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "installCommand": "pnpm install",
+  "regions": ["hkg1"],
+  "functions": {
+    "app/api/v1/runs/route.ts": { "maxDuration": 300 },
+    "app/api/v1/detect/route.ts": { "maxDuration": 120 }
+  },
+  "headers": [
+    {
+      "source": "/api/v1/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Api-Key" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
+}
