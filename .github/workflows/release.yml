@@ -1,0 +1,59 @@
+# 发版：推送 vX.Y.Z 标签后，先跑完整检查，再创建 GitHub Release，
+# 最后把 release 分支快进到这个版本。Vercel 的生产分支设为 release，
+# 因此只有发版才会更新生产环境。
+#
+# 本地发版：pnpm release:patch | release:minor | release:major
+
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: 发布版本
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 标签与 package.json 版本一致
+        run: |
+          expected="v$(node -p 'require("./package.json").version')"
+          if [ "$expected" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与 package.json 的版本 $expected 不一致"
+            exit 1
+          fi
+
+      - name: 标签必须打在 dev 上
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/dev; then
+            echo "::error::$GITHUB_REF_NAME 指向的提交不在 dev 分支上"
+            exit 1
+          fi
+
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+
+      # 只允许快进：如果有人打了比当前生产更旧的标签，这一步会失败，生产不会回退
+      - name: 更新 release 分支，触发 Vercel 生产部署
+        run: git push origin "$GITHUB_SHA:refs/heads/release"
+
+      - name: 摘要
+        run: |
+          echo "### 已发布 $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "release 分支已更新，Vercel 会自动部署生产环境。" >> "$GITHUB_STEP_SUMMARY"
