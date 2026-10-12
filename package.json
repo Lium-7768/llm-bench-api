@@ -9,7 +9,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "smoke": "node scripts/smoke.mjs",
+    "mock": "node scripts/mock-upstream.mjs",
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major",
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
@@ -21,12 +31,28 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^5"
   },
-  "packageManager": "pnpm@10.30.2"
+  "packageManager": "pnpm@10.30.2",
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,yml,yaml}": "prettier --write"
+  }
 }

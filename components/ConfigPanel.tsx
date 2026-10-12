@@ -7,7 +7,7 @@ import { QUESTIONS } from "@/lib/bank";
 import { PRESETS, PROTOCOL_LABELS } from "@/lib/presets";
 import type { Protocol } from "@/lib/types";
 import { postApi } from "@/lib/web/api";
-import { useConfig } from "./ConfigProvider";
+import { useConfig } from "@/lib/web/config";
 import { Combobox, Select } from "./Select";
 import { Field, IconButton, cx, inputClass } from "./ui";
 
@@ -39,7 +39,11 @@ export function ConfigPanel() {
     try {
       const data = await postApi<{ models: string[] }>("/api/v1/models", config);
       setModels(data.models);
-      setNote({ text: data.models.length ? `获取到 ${data.models.length} 个模型，在模型输入框里选择` : "接口没有返回模型列表，请手动填写模型 ID" });
+      setNote({
+        text: data.models.length
+          ? `获取到 ${data.models.length} 个模型，在模型输入框里选择`
+          : "接口没有返回模型列表，请手动填写模型 ID",
+      });
     } catch (e) {
       setNote({ text: (e as Error).message, error: true });
     } finally {
@@ -54,7 +58,11 @@ export function ConfigPanel() {
           label="服务商"
           value={preset.id}
           onChange={choosePreset}
-          options={PRESETS.map((p) => ({ value: p.id, label: p.name, hint: p.id === "custom" ? undefined : PROTOCOL_SHORT[p.protocol] }))}
+          options={PRESETS.map((p) => ({
+            value: p.id,
+            label: p.name,
+            hint: p.id === "custom" ? undefined : PROTOCOL_SHORT[p.protocol],
+          }))}
         />
       </Field>
 
@@ -135,7 +143,12 @@ export function ConfigPanel() {
       </Field>
 
       {note && (
-        <p className={cx("rounded-xl px-3.5 py-2.5 text-xs sm:col-span-2", note.error ? "bg-rose/12 text-rose" : "bg-tint text-readout")}>
+        <p
+          className={cx(
+            "rounded-xl px-3.5 py-2.5 text-xs sm:col-span-2",
+            note.error ? "bg-rose/12 text-rose" : "bg-tint text-readout",
+          )}
+        >
           {note.text}
         </p>
       )}
@@ -154,7 +167,12 @@ export function ConfigPanel() {
       </Field>
 
       <Field label="随机种子（相同则题目和顺序相同）">
-        <input className={inputClass} type="number" value={config.seed} onChange={(e) => update({ seed: Number(e.target.value) || 0 })} />
+        <input
+          className={inputClass}
+          type="number"
+          value={config.seed}
+          onChange={(e) => update({ seed: Number(e.target.value) || 0 })}
+        />
       </Field>
 
       <label className="flex cursor-pointer items-center gap-2.5 text-xs text-readout sm:col-span-2">

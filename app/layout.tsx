@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/unbounded/wght.css";
 import "@fontsource-variable/jetbrains-mono/wght.css";
-import { ConfigProvider } from "@/components/ConfigProvider";
 import { Nav } from "@/components/Nav";
 import "./globals.css";
 
@@ -19,10 +18,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="zh-CN">
       <body>
         <div className="field-bg" aria-hidden />
-        <ConfigProvider>
-          <Nav />
-          <main className="mx-auto max-w-6xl px-4 pt-8 pb-16 sm:px-6">{children}</main>
-        </ConfigProvider>
+        <Nav />
+        <main className="mx-auto max-w-6xl px-4 pt-8 pb-16 sm:px-6">{children}</main>
       </body>
     </html>
   );

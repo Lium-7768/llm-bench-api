@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CheckEvent, StagePlan } from "@/lib/check";
 import type { Report, Stage } from "@/lib/types";
 import { ConfigPanel } from "@/components/ConfigPanel";
-import { missingConfig, useConfig } from "@/components/ConfigProvider";
+import { missingConfig, useConfig } from "@/lib/web/config";
 import { Pipeline, type PipelineStage, type StageStatus } from "@/components/Pipeline";
 import { ReportView } from "@/components/Report";
 import { FlowBar, StageLive, type LiveData } from "@/components/StageLive";
@@ -28,7 +28,15 @@ interface Run {
   live: LiveData;
 }
 
-const EMPTY_RUN: Run = { plans: [], status: {}, scores: {}, errors: {}, current: null, stageStartedAt: 0, live: { answers: {}, checks: {} } };
+const EMPTY_RUN: Run = {
+  plans: [],
+  status: {},
+  scores: {},
+  errors: {},
+  current: null,
+  stageStartedAt: 0,
+  live: { answers: {}, checks: {} },
+};
 
 export default function Home() {
   const { config } = useConfig();
@@ -123,7 +131,13 @@ export default function Home() {
       return { id, status: on ? "pending" : "off", progress: 0, caption: on ? "待检测" : "已跳过" };
     }
     const plan = run.plans.find((p) => p.id === id);
-    if (!plan) return { id, status: run.plans.length ? "off" : "pending", progress: 0, caption: run.plans.length ? "已跳过" : "准备中" };
+    if (!plan)
+      return {
+        id,
+        status: run.plans.length ? "off" : "pending",
+        progress: 0,
+        caption: run.plans.length ? "已跳过" : "准备中",
+      };
     const status = run.status[id] ?? "pending";
     const done =
       id === "detect"
@@ -148,12 +162,20 @@ export default function Home() {
 
   const active = pipeline.filter((p) => p.status !== "off");
   const overall = active.length
-    ? active.reduce((s, p) => s + (p.status === "done" || p.status === "error" ? 1 : p.status === "active" ? p.progress : 0), 0) / active.length
+    ? active.reduce(
+        (s, p) => s + (p.status === "done" || p.status === "error" ? 1 : p.status === "active" ? p.progress : 0),
+        0,
+      ) / active.length
     : 0;
   const currentPlan = run.plans.find((p) => p.id === run.current);
 
   const configModal = (
-    <Modal open={configOpen} onClose={() => setConfigOpen(false)} title="被测接口" icon={<Settings2 size={18} className="text-violet" />}>
+    <Modal
+      open={configOpen}
+      onClose={() => setConfigOpen(false)}
+      title="被测接口"
+      icon={<Settings2 size={18} className="text-violet" />}
+    >
       {error && <p className="mb-4 rounded-xl bg-rose/8 px-4 py-2.5 text-sm text-rose">{error}</p>}
       <ConfigPanel />
     </Modal>
@@ -169,9 +191,12 @@ export default function Home() {
           transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
           className="max-w-3xl pt-6 pb-10 text-center sm:pt-12"
         >
-          <h1 className="font-display text-4xl leading-[1.15] font-bold tracking-tight sm:text-6xl">给模型接口做一次全面体检</h1>
+          <h1 className="font-display text-4xl leading-[1.15] font-bold tracking-tight sm:text-6xl">
+            给模型接口做一次全面体检
+          </h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-readout">
-            按顺序跑完指纹检测、基础测试、糖果测试和鹈鹕测试，每一步走到哪里都看得见。支持 OpenAI 兼容、Anthropic、Gemini 三种协议。
+            按顺序跑完指纹检测、基础测试、糖果测试和鹈鹕测试，每一步走到哪里都看得见。支持 OpenAI
+            兼容、Anthropic、Gemini 三种协议。
           </p>
         </motion.section>
 
@@ -185,7 +210,11 @@ export default function Home() {
             <Pipeline
               stages={pipeline}
               idle
-              onToggle={(s) => setSelected((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : STAGES.filter((x) => x === s || prev.includes(x))))}
+              onToggle={(s) =>
+                setSelected((prev) =>
+                  prev.includes(s) ? prev.filter((x) => x !== s) : STAGES.filter((x) => x === s || prev.includes(x)),
+                )
+              }
             />
             <p className="mt-4 text-center text-xs text-faint">点击节点可以跳过或加入某一步</p>
 
@@ -198,9 +227,15 @@ export default function Home() {
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs text-readout">{preset?.name ?? "自定义"}</span>
                   <span className="block truncate font-display text-lg">{config.model || "还没有选择模型"}</span>
-                  <span className="block truncate text-xs text-faint">{config.baseUrl || "点击配置接口地址和密钥"}</span>
+                  <span className="block truncate text-xs text-faint">
+                    {config.baseUrl || "点击配置接口地址和密钥"}
+                  </span>
                 </span>
-                <Settings2 size={20} className="shrink-0 text-readout transition duration-500 group-hover:rotate-90 group-hover:text-violet" aria-label="配置接口" />
+                <Settings2
+                  size={20}
+                  className="shrink-0 text-readout transition duration-500 group-hover:rotate-90 group-hover:text-violet"
+                  aria-label="配置接口"
+                />
               </button>
 
               <motion.button
@@ -210,7 +245,7 @@ export default function Home() {
                 title="开始检测"
                 whileHover={{ scale: 1.06 }}
                 whileTap={{ scale: 0.94 }}
-                className="relative mx-auto grid size-16 shrink-0 place-items-center rounded-full spectrum-bg animate-flow text-white shadow-[0_0_0_1px_rgb(255_255_255/0.35)_inset,0_14px_34px_-8px_rgb(124_58_237/0.65),0_0_44px_-12px_rgb(8_145_178/0.55)] sm:mx-0"
+                className="relative mx-auto grid size-16 shrink-0 animate-flow place-items-center rounded-full spectrum-bg text-white shadow-[0_0_0_1px_rgb(255_255_255/0.35)_inset,0_14px_34px_-8px_rgb(124_58_237/0.65),0_0_44px_-12px_rgb(8_145_178/0.55)] sm:mx-0"
               >
                 <span className="absolute inset-0 animate-ping rounded-full bg-violet/20 [animation-duration:2.4s]" />
                 <Play size={26} fill="currentColor" className="relative ml-1" />
@@ -225,7 +260,13 @@ export default function Home() {
           {STAGES.map((s, i) => {
             const info = STAGE_INFO[s];
             return (
-              <motion.li key={s} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + i * 0.07 }} className="flex gap-3">
+              <motion.li
+                key={s}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + i * 0.07 }}
+                className="flex gap-3"
+              >
                 <info.Icon size={18} className={`mt-0.5 shrink-0 ${info.color}`} />
                 <span>
                   <span className="text-ink">{info.name}</span>
@@ -259,16 +300,25 @@ export default function Home() {
                   <span className="relative inline-flex size-2.5 rounded-full bg-blue" />
                 </span>
               )}
-              {phase === "running" ? (currentPlan ? `正在进行${STAGE_INFO[currentPlan.id].name}` : "正在连接接口") : "检测完成"}
+              {phase === "running"
+                ? currentPlan
+                  ? `正在进行${STAGE_INFO[currentPlan.id].name}`
+                  : "正在连接接口"
+                : "检测完成"}
             </motion.p>
           </AnimatePresence>
-          <h1 className="spectrum-text mt-1 font-display text-3xl font-bold break-all sm:text-4xl">{config.model}</h1>
+          <h1 className="mt-1 spectrum-text font-display text-3xl font-bold break-all sm:text-4xl">{config.model}</h1>
         </div>
         {phase === "running" && (
           <div className="flex items-center gap-7">
             <Stat label="总进度" value={`${Math.round(overall * 100)}%`} />
             <Stat label="用时" value={`${((now - startedAt) / 1000).toFixed(1)}s`} />
-            <IconButton label="停止检测" tone="danger" icon={<Square size={16} fill="currentColor" />} onClick={() => abort.current?.abort()} />
+            <IconButton
+              label="停止检测"
+              tone="danger"
+              icon={<Square size={16} fill="currentColor" />}
+              onClick={() => abort.current?.abort()}
+            />
           </div>
         )}
       </div>
@@ -288,9 +338,20 @@ export default function Home() {
             <Panel className="min-h-80 p-5 sm:p-8">
               <AnimatePresence mode="wait">
                 {currentPlan ? (
-                  <StageLive key={currentPlan.id} plan={currentPlan} live={run.live} elapsed={now - run.stageStartedAt} />
+                  <StageLive
+                    key={currentPlan.id}
+                    plan={currentPlan}
+                    live={run.live}
+                    elapsed={now - run.stageStartedAt}
+                  />
                 ) : (
-                  <motion.p key="wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-24 text-center text-readout">
+                  <motion.p
+                    key="wait"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="py-24 text-center text-readout"
+                  >
                     {run.plans.length ? "全部步骤完成，正在生成报告" : "正在建立连接"}
                   </motion.p>
                 )}
@@ -304,9 +365,17 @@ export default function Home() {
                 report={report}
                 actions={
                   <>
-                    <IconButton label="返回，重新选择步骤" icon={<ArrowLeft size={18} />} onClick={() => setPhase("idle")} />
+                    <IconButton
+                      label="返回，重新选择步骤"
+                      icon={<ArrowLeft size={18} />}
+                      onClick={() => setPhase("idle")}
+                    />
                     <IconButton label="再测一次" icon={<RotateCcw size={18} />} onClick={start} />
-                    <IconButton label="修改接口配置" icon={<Settings2 size={18} />} onClick={() => setConfigOpen(true)} />
+                    <IconButton
+                      label="修改接口配置"
+                      icon={<Settings2 size={18} />}
+                      onClick={() => setConfigOpen(true)}
+                    />
                     <IconButton label="导出报告 JSON" icon={<Download size={18} />} onClick={exportReport} />
                     <IconLink href="/compare" label="和其他模型对比" icon={<GitCompareArrows size={18} />} />
                   </>

@@ -2,23 +2,23 @@
 
 import { useEffect, useId, useState } from "react";
 
-/** 数字从 0 滚动到目标值 */
+/** 数字从 0 滚动到目标值；减少动态效果时直接显示终值 */
 export function useCountUp(target: number | null, duration = 1600): number | null {
-  const [value, setValue] = useState<number | null>(target === null ? null : 0);
+  const [value, setValue] = useState(0);
   useEffect(() => {
-    if (target === null) return setValue(null);
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return setValue(target);
+    if (target === null) return;
+    const instant = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let frame = 0;
     const start = performance.now();
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
+      const t = instant ? 1 : Math.min(1, (now - start) / duration);
       setValue(target * (1 - Math.pow(1 - t, 3)));
       if (t < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [target, duration]);
-  return value;
+  return target === null ? null : value;
 }
 
 /** 光谱渐变的环形分数 */
@@ -70,7 +70,10 @@ export function ScoreDial({ score, label, size = 200 }: { score: number | null; 
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <strong className="spectrum-text font-display leading-none font-bold tabular-nums" style={{ fontSize: size * 0.26 }}>
+        <strong
+          className="spectrum-text font-display leading-none font-bold tabular-nums"
+          style={{ fontSize: size * 0.26 }}
+        >
           {shown === null ? "—" : Math.round(shown)}
         </strong>
         <span className="mt-2 text-xs text-readout">{label}</span>

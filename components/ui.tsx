@@ -15,7 +15,7 @@ function useTip<T extends HTMLElement>() {
   const [open, setOpen] = useState(false);
   const show = () => setOpen(true);
   const hide = () => setOpen(false);
-  return { ref, open, handlers: { onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide } };
+  return [ref, open, { onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide }] as const;
 }
 
 /**
@@ -35,11 +35,11 @@ export function IconButton({
   tone?: "default" | "danger" | "ghost";
   size?: "sm" | "md";
 }) {
-  const tip = useTip<HTMLButtonElement>();
+  const [tipRef, tipOpen, tipHandlers] = useTip<HTMLButtonElement>();
   return (
     <>
       <button
-        ref={tip.ref}
+        ref={tipRef}
         type="button"
         aria-label={label}
         className={cx(
@@ -53,34 +53,34 @@ export function IconButton({
           className,
         )}
         onClick={(e) => {
-          tip.handlers.onMouseLeave();
+          tipHandlers.onMouseLeave();
           onClick?.(e);
         }}
-        {...tip.handlers}
+        {...tipHandlers}
         {...rest}
       >
         {icon}
       </button>
-      <Tooltip anchor={tip.ref} open={tip.open} label={label} />
+      <Tooltip anchor={tipRef} open={tipOpen} label={label} />
     </>
   );
 }
 
 /** 只有图标的链接，外观与 IconButton 一致 */
 export function IconLink({ href, label, icon }: { href: string; label: string; icon: ReactNode }) {
-  const tip = useTip<HTMLAnchorElement>();
+  const [tipRef, tipOpen, tipHandlers] = useTip<HTMLAnchorElement>();
   return (
     <>
       <Link
-        ref={tip.ref}
+        ref={tipRef}
         href={href}
         aria-label={label}
         className="inline-grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface text-ink shadow-[0_1px_2px_rgb(15_20_48/0.06)] transition hover:border-violet/40 hover:bg-violet/6 hover:text-violet"
-        {...tip.handlers}
+        {...tipHandlers}
       >
         {icon}
       </Link>
-      <Tooltip anchor={tip.ref} open={tip.open} label={label} />
+      <Tooltip anchor={tipRef} open={tipOpen} label={label} />
     </>
   );
 }
@@ -151,7 +151,13 @@ export function Pill({ tone, children }: { tone: "pass" | "warn" | "fail" | "mut
 
 export function Panel({ className, children, ...rest }: ComponentProps<"section">) {
   return (
-    <section className={cx("rounded-3xl border border-line bg-surface/85 shadow-[0_1px_2px_rgb(15_20_48/0.04),0_16px_48px_-24px_rgb(37_99_235/0.22)] backdrop-blur-xl", className)} {...rest}>
+    <section
+      className={cx(
+        "rounded-3xl border border-line bg-surface/85 shadow-[0_1px_2px_rgb(15_20_48/0.04),0_16px_48px_-24px_rgb(37_99_235/0.22)] backdrop-blur-xl",
+        className,
+      )}
+      {...rest}
+    >
       {children}
     </section>
   );
