@@ -179,7 +179,11 @@ export function GET() {
                     model: { type: "string" },
                     baseUrl: { type: "string" },
                     apiKey: { type: "string" },
-                    timeoutMs: { type: "integer", default: 45000 },
+                    timeoutMs: {
+                      type: "integer",
+                      default: 20000,
+                      description: "单项探测的超时时间；四项并发执行",
+                    },
                   },
                 },
               },
