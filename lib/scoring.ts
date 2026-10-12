@@ -42,24 +42,23 @@ export function judge({ question, output, rubricScore }: JudgeInput): JudgeOutpu
   switch (question.match) {
     case "exact": {
       const expected = (question.expected ?? "").trim();
-      const candidates = [expected, ...(question.accept ?? [])];
-      const hit = candidates.some(
-        (c) => c && text.toLowerCase() === c.toLowerCase(),
-      );
-      // 容错：模型可能带少量前后缀，做一次「整体包含且长度接近」判定
-      const loose =
-        !hit &&
-        candidates.some(
-          (c) =>
-            c &&
-            text.toLowerCase().includes(c.toLowerCase()) &&
-            text.length <= c.length + 12,
-        );
-      const ok = hit || loose;
+      const candidates = [expected, ...(question.accept ?? [])].filter(Boolean);
+
+      // 1) 完全一致（忽略大小写与首尾空白）
+      const hit = candidates.some((c) => text.toLowerCase() === c.toLowerCase());
+      if (hit) return { passed: true, score: question.weight };
+
+      // 2) 宽容匹配：模型可能带少量前后缀（如「答案：42」「47 天」）。
+      //    必须做词边界校验，否则 142 / 420 / 4212 都会被当成 42 而误判通过。
+      const loose = candidates.some((c) => {
+        if (text.length > c.length + 12) return false;
+        return containsAsToken(text, c);
+      });
+
       return {
-        passed: ok,
-        score: ok ? question.weight : 0,
-        reason: ok ? undefined : `期望「${expected}」，实际「${truncate(text)}」`,
+        passed: loose,
+        score: loose ? question.weight : 0,
+        reason: loose ? undefined : `期望「${expected}」，实际「${truncate(text)}」`,
       };
     }
 
@@ -170,6 +169,47 @@ export function compareToBaseline(
 
 export function categoryLabel(c: Category): string {
   return CATEGORY_LABELS[c] ?? c;
+}
+
+/**
+ * 判断 needle 是否作为独立片段出现在 haystack 中（大小写不敏感）。
+ *
+ * 用于 exact 模式的宽容匹配，避免「包含即通过」造成的误判：
+ *   containsAsToken("142", "42")     -> false  （42 是 142 的一部分，不是独立答案）
+ *   containsAsToken("420", "42")     -> false
+ *   containsAsToken("42abc", "42")   -> false  （与字母数字粘连，视为没有清晰作答）
+ *   containsAsToken("答案为42", "42") -> true   （中文不是词字符，可作边界）
+ *   containsAsToken("47 天", "47")    -> true
+ *
+ * 规则：若 needle 首/尾是字母或数字，则对应一侧不能紧邻字母或数字。
+ * 中文、空格、标点都算合法边界。这样可以接受「答案是 42」「47 天」这类
+ * 正常作答，同时拒绝「142」这种把答案藏在更大数字里的情况。
+ */
+export function containsAsToken(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  const h = haystack.toLowerCase();
+  const n = needle.toLowerCase();
+
+  const isWordChar = (ch: string | undefined): boolean =>
+    ch !== undefined && /[a-z0-9]/.test(ch);
+
+  const startsWordy = isWordChar(n[0]);
+  const endsWordy = isWordChar(n[n.length - 1]);
+
+  let from = 0;
+  while (true) {
+    const idx = h.indexOf(n, from);
+    if (idx === -1) return false;
+
+    const before = idx > 0 ? h[idx - 1] : undefined;
+    const after = idx + n.length < h.length ? h[idx + n.length] : undefined;
+
+    const leftOk = !startsWordy || !isWordChar(before);
+    const rightOk = !endsWordy || !isWordChar(after);
+
+    if (leftOk && rightOk) return true;
+    from = idx + 1;
+  }
 }
 
 function truncate(s: string, n = 80): string {

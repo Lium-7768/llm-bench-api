@@ -140,9 +140,11 @@ export const QUESTIONS: Question[] = [
   {
     id: "know-001",
     category: "knowledge",
-    prompt: "HTTP 状态码 429 代表什么含义？只回答一句话。",
-    match: "contains",
-    accept: ["请求过多", "太多请求", "速率", "限流", "Too Many Requests"],
+    prompt:
+      "HTTP 状态码 429 的官方名称是什么？只回答这个英文名称，不要解释，不要标点。",
+    // 改为精确匹配官方名称：避免 contains 把「这个和限流没关系」这类否定句判为通过
+    match: "regex",
+    accept: ["^\\s*too\\s+many\\s+requests\\.?\\s*$"],
     weight: 1,
     difficulty: 1,
   },
