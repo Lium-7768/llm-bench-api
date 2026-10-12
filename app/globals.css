@@ -28,14 +28,9 @@
 
   --animate-flow: flow 2.4s linear infinite;
   --animate-sweep: sweep 1.4s ease-in-out infinite;
-  --animate-orbit: orbit 2.6s linear infinite;
-  --animate-pop: pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
-  --animate-log: log-in 0.35s ease-out;
   --animate-reveal: reveal 0.9s ease-out;
   --animate-modal: reveal 0.3s ease-out;
-  --animate-wave: wave 2.2s ease-in-out infinite;
   --animate-scan: scan 2.2s linear infinite;
-  --animate-blink: blink 1.1s ease-in-out infinite;
 
   @keyframes flow {
     to {
@@ -48,23 +43,6 @@
     }
     to {
       transform: translateX(100%);
-    }
-  }
-  @keyframes orbit {
-    to {
-      --angle: 360deg;
-    }
-  }
-  @keyframes pop {
-    from {
-      transform: scale(0.2);
-      opacity: 0;
-    }
-  }
-  @keyframes log-in {
-    from {
-      opacity: 0;
-      transform: translateX(-10px);
     }
   }
   @keyframes reveal {
@@ -82,22 +60,6 @@
       background-position: 0 -130%;
     }
   }
-  @keyframes wave {
-    50% {
-      transform: scaleY(0.3);
-    }
-  }
-  @keyframes blink {
-    50% {
-      opacity: 0.25;
-    }
-  }
-}
-
-@property --angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
 }
 
 @layer base {
@@ -147,33 +109,6 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-
-/* 流光描边：运行中的模块外圈有一道光绕着走 */
-@utility orbit-border {
-  position: relative;
-  &::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    padding: 1.5px;
-    background: conic-gradient(
-      from var(--angle),
-      transparent 0 60%,
-      var(--color-violet) 72%,
-      var(--color-cyan) 86%,
-      var(--color-mint) 95%,
-      transparent
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    animation: var(--animate-orbit);
-    pointer-events: none;
-  }
 }
 
 /* 背景：顶部一抹淡淡的光谱晕染，运行时变浓 */
