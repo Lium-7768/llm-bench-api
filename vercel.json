@@ -3,11 +3,7 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "pnpm install",
-  "regions": ["hkg1"],
-  "functions": {
-    "app/api/v1/runs/route.ts": { "maxDuration": 300 },
-    "app/api/v1/detect/route.ts": { "maxDuration": 120 }
-  },
+  "regions": ["sin1"],
   "headers": [
     {
       "source": "/api/v1/(.*)",
