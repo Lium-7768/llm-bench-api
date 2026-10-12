@@ -218,6 +218,7 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 
 - **分支**：主分支是 `dev`。改动走 PR 合入 `dev`。`release` 分支只由发版工作流移动，不要手动推送。
 - **提交信息**：约定式提交，描述用中文，如 `feat(detect): 新增工具调用探测`、`fix(scoring): 修正 exact 判分的子串误判`。commit-msg 钩子和 PR 上的 CI 都会校验。
+- **提交信息不能署名**：不要加 `Co-Authored-By`、`Signed-off-by`、「Generated with Claude Code」之类的署名行，AI 助手生成的提交也一样。commitlint 的 `no-signature` 规则会拒绝带署名的提交。
 - **提交前**：Husky + lint-staged 自动对改动的文件跑 `eslint --fix` 和 `prettier --write`。
 - **注释与文案**：中文。代码注释写「为什么」，不复述代码。界面文案用用户能懂的话，不写实现细节。
 - **API 契约**：改 `lib/types.ts` 时同步更新 `app/api/v1/openapi/route.ts`、`app/docs/page.tsx`、README 和本文件。
