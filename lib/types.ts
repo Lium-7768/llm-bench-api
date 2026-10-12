@@ -1,125 +1,171 @@
 /**
- * 公共类型定义 —— 对外 API 的契约来源。
- * 任何改动都应同步更新 /app/api/v1/openapi/route.ts 与 README。
+ * 公共类型 —— 对外 API 的契约，前后端共用。
+ * 改动时同步更新 app/api/v1/openapi/route.ts 与 README。
  */
 
-/** 评测维度 */
-export type Category =
-  | "reasoning" // 逻辑推理
-  | "reading" // 阅读理解
-  | "coding" // 代码
-  | "knowledge" // 知识问答
-  | "hallucination" // 幻觉/迷惑题
-  | "instruction"; // 指令遵循
+/** 上游接口协议 */
+export type Protocol = "openai" | "anthropic" | "gemini";
 
-/** 单道题目 */
+/** 被测接口：每次请求都由调用方带上，服务端不保存 */
+export interface Target {
+  protocol: Protocol;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+// ---------------------------------------------------------------- 能力评测
+
+export type Category =
+  | "reasoning"
+  | "reading"
+  | "coding"
+  | "knowledge"
+  | "hallucination"
+  | "instruction";
+
 export interface Question {
   id: string;
   category: Category;
-  /** 题干 */
   prompt: string;
-  /** 期望答案（用于客观判分） */
+  /** exact=精确匹配（带少量前后缀容错），contains=包含任一关键词，regex=匹配任一正则 */
+  match: "exact" | "contains" | "regex";
+  /** exact 的标准答案 */
   expected?: string;
-  /** 可接受的等价答案 */
+  /** 可接受的其他答案 / 关键词 / 正则 */
   accept?: string[];
-  /** 判分方式：exact=精确匹配，contains=包含，regex=正则，rubric=无标准答案由模型自评 */
-  match: "exact" | "contains" | "regex" | "rubric";
-  /** rubric 模式下给「裁判模型」的评分说明 */
-  rubric?: string;
-  /** 分值 */
   weight: number;
-  /** 难度 1-5 */
   difficulty: 1 | 2 | 3 | 4 | 5;
 }
 
-/** 随机数种子：同一 seed + 同一题库版本 => 同一套题 */
-export interface RunConfig {
-  /** 被测模型 */
-  model: string;
-  /** 基础地址，如 https://api.openai.com/v1 */
-  baseUrl: string;
-  /** 题目数量上限 */
-  limit?: number;
-  /** 只测某些维度 */
-  categories?: Category[];
-  /** 采样温度 */
-  temperature?: number;
-  seed?: number;
-}
-
-export type RunStatus = "queued" | "running" | "succeeded" | "failed";
-
-/** 单题作答结果 */
 export interface AnswerResult {
   questionId: string;
   category: Category;
   prompt: string;
-  /** 模型原始输出 */
   output: string;
-  /** 是否命中 */
   passed: boolean;
-  /** 该题得分 */
   score: number;
-  /** 该题满分 */
   weight: number;
-  /** 失败原因或错误信息 */
-  error?: string;
+  /** 未通过的原因或调用错误 */
+  reason?: string;
+  /** 调用上游失败（不计入得分） */
+  errored?: boolean;
   latencyMs: number;
-  promptTokens?: number;
-  completionTokens?: number;
+  usage?: Usage;
 }
 
-/** 维度聚合 */
 export interface CategoryScore {
   category: Category;
-  score: number;
-  max: number;
+  label: string;
   /** 0-100 */
   percent: number;
-  total: number;
   passed: number;
+  total: number;
 }
 
-/** 一次评测任务 */
-export interface Run {
+export interface BenchResult {
   id: string;
-  status: RunStatus;
-  createdAt: string;
-  finishedAt?: string;
-  config: RunConfig;
-  /** 参与本次评测的题目 id 列表 */
-  questionIds: string[];
+  model: string;
+  protocol: Protocol;
+  /** 只含协议与域名，不含路径参数和密钥 */
+  host: string;
+  startedAt: string;
+  durationMs: number;
+  /** 0-100，只按成功作答的题计算；全部调用失败时为 null */
+  score: number | null;
+  /** 调用失败、未计分的题数 */
+  failedCalls: number;
+  categories: CategoryScore[];
   answers: AnswerResult[];
-  categories?: CategoryScore[];
-  /** 0-100 总分 */
-  score?: number;
+  bankVersion: string;
+  seed: number;
   error?: string;
-  meta: {
-    engineVersion: string;
-    bankVersion: string;
-    /** 被脱敏后的 baseUrl（不含密钥） */
-    baseUrlMasked: string;
-    totalLatencyMs?: number;
-  };
 }
 
-/** 中转站/接口指纹检测结果 */
-export interface FingerprintResult {
+// ---------------------------------------------------------------- 中转站检测
+
+export type CheckStatus = "pass" | "warn" | "fail" | "unsupported" | "error";
+
+export interface CheckResult {
+  id: string;
+  name: string;
+  status: CheckStatus;
+  detail: string;
+  latencyMs?: number;
+}
+
+export interface DetectResult {
+  id: string;
   model: string;
-  /** 模型自报身份与请求模型是否一致 */
-  identityMatch: boolean;
-  /** 是否吞掉 system prompt */
-  systemPromptHonored: boolean;
-  /** 是否伪流式（一次性返回） */
-  streamingReal: boolean;
-  /** 返回 token 用量是否正常 */
-  usagePresent: boolean;
-  signals: Array<{ name: string; ok: boolean; detail: string }>;
+  protocol: Protocol;
+  host: string;
+  startedAt: string;
+  durationMs: number;
+  /** 0-100 诚信分；没有可判定项时为 null */
+  score: number | null;
   /**
-   * clean       全部检查通过
-   * suspicious  部分异常，建议人工复核
-   * tampered    多项异常，很可能被改动过
-   * inconclusive 探测本身没能完成（超时/上游不可达），无法下结论
+   * clean        全部通过
+   * suspicious   有可疑项，建议复核
+   * tampered     多项异常，很可能被掺水
+   * inconclusive 探测本身没跑通（超时 / 不可达），无法下结论
    */
   verdict: "clean" | "suspicious" | "tampered" | "inconclusive";
+  checks: CheckResult[];
+}
+
+// ---------------------------------------------------------------- 鹈鹕绘图
+
+export interface PelicanResult {
+  id: string;
+  model: string;
+  protocol: Protocol;
+  host: string;
+  startedAt: string;
+  durationMs: number;
+  prompt: string;
+  /** 从回答里提取出的 SVG；没提取到时为 null */
+  svg: string | null;
+  /** 模型原始回答 */
+  raw: string;
+  usage?: Usage;
+}
+
+export interface Usage {
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+/** 统一响应信封 */
+export type Envelope<T> =
+  | { ok: true; data: T; error: null }
+  | { ok: false; data: null; error: { code: string; message: string } };
+
+// ---------------------------------------------------------------- 全面检测
+
+/**
+ * 检测按顺序分四步：
+ * detect  指纹检测：中转站有没有换模型、吞指令、假流式
+ * basic   基础测试：推理、阅读、代码、知识、指令遵循
+ * candy   糖果测试：改过条件的熟题、不存在的文献，测幻觉
+ * pelican 鹈鹕测试：画一只骑自行车的鹈鹕，不计分
+ */
+export type Stage = "detect" | "basic" | "candy" | "pelican";
+
+/** 一次全面检测的完整报告 */
+export interface Report {
+  id: string;
+  model: string;
+  protocol: Protocol;
+  host: string;
+  startedAt: string;
+  durationMs: number;
+  stages: Stage[];
+  /** 综合分 0-100 = 指纹 30% + 基础 40% + 糖果 30%（只算有结果的部分）；都没有时为 null */
+  score: number | null;
+  detect?: DetectResult;
+  basic?: BenchResult;
+  candy?: BenchResult;
+  pelican?: PelicanResult;
+  /** 某一步整体失败或被跳过的原因 */
+  errors: Partial<Record<Stage, string>>;
 }

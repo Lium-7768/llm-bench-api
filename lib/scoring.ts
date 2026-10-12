@@ -1,12 +1,5 @@
-import type {
-  AnswerResult,
-  Category,
-  CategoryScore,
-  Question,
-} from "./types";
-import { CATEGORY_LABELS } from "./bank";
-
-export const ENGINE_VERSION = "1.0.0";
+import type { AnswerResult, Category, CategoryScore, Question } from "./types";
+import { ALL_CATEGORIES, CATEGORY_LABELS } from "./bank";
 
 /** 归一化模型输出：去代码块、去空白、去常见前缀 */
 export function normalize(raw: string): string {
@@ -17,12 +10,6 @@ export function normalize(raw: string): string {
   return s;
 }
 
-export interface JudgeInput {
-  question: Question;
-  output: string;
-  /** rubric 模式下由裁判模型给出的 0-1 分数 */
-  rubricScore?: number;
-}
 
 export interface JudgeOutput {
   passed: boolean;
@@ -30,10 +17,8 @@ export interface JudgeOutput {
   reason?: string;
 }
 
-/**
- * 判分：客观题本地判，主观题（rubric）依赖外部传入的 rubricScore。
- */
-export function judge({ question, output, rubricScore }: JudgeInput): JudgeOutput {
+/** 本地判分 */
+export function judge(question: Question, output: string): JudgeOutput {
   const text = normalize(output);
   if (!text) {
     return { passed: false, score: 0, reason: "空输出" };
@@ -103,32 +88,18 @@ export function judge({ question, output, rubricScore }: JudgeInput): JudgeOutpu
       };
     }
 
-    case "rubric": {
-      if (typeof rubricScore !== "number") {
-        return {
-          passed: false,
-          score: 0,
-          reason: "主观题未获得裁判评分（详见 runner 提供的具体原因）",
-        };
-      }
-      const ratio = Math.max(0, Math.min(1, rubricScore));
-      const score = round2(question.weight * ratio);
-      return {
-        passed: ratio >= 0.6,
-        score,
-        reason: ratio >= 0.6 ? undefined : `裁判评分 ${ratio}`,
-      };
-    }
-
     default:
       return { passed: false, score: 0, reason: "未知判分方式" };
   }
 }
 
-/** 聚合维度得分 */
+/**
+ * 聚合维度得分。调用失败的题不计分：那是接口问题，不是模型答错。
+ */
 export function aggregate(answers: AnswerResult[]): CategoryScore[] {
   const map = new Map<Category, { score: number; max: number; total: number; passed: number }>();
   for (const a of answers) {
+    if (a.errored) continue;
     const cur = map.get(a.category) ?? { score: 0, max: 0, total: 0, passed: 0 };
     cur.score += a.score;
     cur.max += a.weight;
@@ -139,36 +110,20 @@ export function aggregate(answers: AnswerResult[]): CategoryScore[] {
   return [...map.entries()]
     .map(([category, v]) => ({
       category,
-      score: round2(v.score),
-      max: round2(v.max),
+      label: CATEGORY_LABELS[category],
       percent: v.max > 0 ? round2((v.score / v.max) * 100) : 0,
       total: v.total,
       passed: v.passed,
     }))
-    .sort((a, b) => b.percent - a.percent);
+    .sort((a, b) => ALL_CATEGORIES.indexOf(a.category) - ALL_CATEGORIES.indexOf(b.category));
 }
 
-/** 总分 0-100：加权得分率 */
-export function totalScore(answers: AnswerResult[]): number {
-  const max = answers.reduce((s, a) => s + a.weight, 0);
-  const got = answers.reduce((s, a) => s + a.score, 0);
-  return max > 0 ? round2((got / max) * 100) : 0;
-}
-
-/** 与基线对比，判断是否「降智」 */
-export function compareToBaseline(
-  current: number,
-  baseline: number,
-  tolerance = 5,
-): { delta: number; verdict: "better" | "stable" | "degraded" } {
-  const delta = round2(current - baseline);
-  if (delta > tolerance) return { delta, verdict: "better" };
-  if (delta < -tolerance) return { delta, verdict: "degraded" };
-  return { delta, verdict: "stable" };
-}
-
-export function categoryLabel(c: Category): string {
-  return CATEGORY_LABELS[c] ?? c;
+/** 总分 0-100：加权得分率；没有任何有效作答时为 null */
+export function totalScore(answers: AnswerResult[]): number | null {
+  const scored = answers.filter((a) => !a.errored);
+  const max = scored.reduce((s, a) => s + a.weight, 0);
+  const got = scored.reduce((s, a) => s + a.score, 0);
+  return max > 0 ? round2((got / max) * 100) : null;
 }
 
 /**

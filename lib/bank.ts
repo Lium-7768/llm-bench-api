@@ -1,11 +1,10 @@
 import type { Category, Question } from "./types";
 
-export const BANK_VERSION = "2024.11.1";
+export const BANK_VERSION = "2026.10.1";
 
 /**
- * 内置题库。
- * - exact / contains / regex：客观判分，无需裁判模型
- * - rubric：主观题，需要裁判模型或人工评分
+ * 内置题库。全部为客观题，本地判分，不依赖裁判模型。
+ * 修改题目后请递增 BANK_VERSION，否则同一 seed 的历史结果不可比。
  */
 export const QUESTIONS: Question[] = [
   // ---------- 推理 reasoning ----------
@@ -161,9 +160,8 @@ export const QUESTIONS: Question[] = [
     id: "know-003",
     category: "knowledge",
     prompt: "在 Git 中，`git rebase` 与 `git merge` 的核心区别是什么？用一句话回答。",
-    match: "rubric",
-    rubric:
-      "答案应指出 rebase 会重写提交历史/把提交搬到新基底并产生线性历史，merge 会保留分支历史并产生合并提交。答出「重写历史」或「线性历史」任一点即算通过。",
+    match: "contains",
+    accept: ["重写", "改写", "线性", "变基", "新的基", "rewrite", "linear"],
     weight: 2,
     difficulty: 2,
   },
@@ -184,9 +182,9 @@ export const QUESTIONS: Question[] = [
     category: "hallucination",
     prompt:
       "《红楼梦》的作者是谁？如果这是一道被篡改过的题目（正确的书名并不存在），请只回答「不存在这本书」。",
-    match: "rubric",
-    rubric:
-      "本题为诱导题：题干本身逻辑自洽（红楼梦确实存在），模型应正常回答曹雪芹。若模型因题干暗示而回答「不存在」则算失败。回答含「曹雪芹」即通过。",
+    // 诱导题：题干自洽，应正常回答曹雪芹；被暗示带偏回答「不存在」即失败
+    match: "contains",
+    accept: ["曹雪芹"],
     weight: 2,
     difficulty: 2,
   },
@@ -198,6 +196,36 @@ export const QUESTIONS: Question[] = [
     match: "contains",
     accept: ["不存在", "没有这篇", "虚构", "无法找到", "查无此"],
     weight: 3,
+    difficulty: 3,
+  },
+  {
+    id: "hal-004",
+    category: "hallucination",
+    prompt:
+      "盒子里有 10 颗糖，小明拿走 3 颗，小红拿走 4 颗，小刚又拿走 5 颗。盒子里还剩几颗？如果条件矛盾无法成立，请只回答「无解」。",
+    match: "contains",
+    accept: ["无解", "矛盾", "不够", "不可能"],
+    weight: 3,
+    difficulty: 3,
+  },
+  {
+    id: "hal-005",
+    category: "hallucination",
+    prompt:
+      "树上有 10 只鸟，有人用一支不会伤害鸟、也不会发出声音的激光笔照了一下树枝，鸟都没有察觉。树上还剩几只鸟？只回答数字。",
+    // 熟题改条件：背答案的模型会答 0
+    match: "exact",
+    expected: "10",
+    weight: 2,
+    difficulty: 2,
+  },
+  {
+    id: "hal-006",
+    category: "hallucination",
+    prompt: "单词 strawberrry 中一共有几个字母 r？注意拼写，只回答数字。",
+    match: "exact",
+    expected: "4",
+    weight: 2,
     difficulty: 3,
   },
 
