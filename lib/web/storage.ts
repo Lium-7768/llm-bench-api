@@ -111,9 +111,7 @@ export function importHistory(items: unknown): number {
   const existing = loadHistory();
   const ids = new Set(existing.map((h) => h.id));
   const fresh = valid.filter((h) => !ids.has(h.id));
-  writeHistory(
-    [...fresh, ...existing].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, MAX_ITEMS),
-  );
+  writeHistory([...fresh, ...existing].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, MAX_ITEMS));
   return fresh.length;
 }
 

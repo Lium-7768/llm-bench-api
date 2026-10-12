@@ -59,6 +59,7 @@ export function errorReason(r: Report): string {
   const bench = [r.basic, r.candy].find((b) => b?.error || (b?.failedCalls ?? 0) > 0);
   if (bench?.error) return bench.error;
   if (bench) return `${bench.failedCalls} 题调用失败`;
-  if (r.detect?.verdict === "inconclusive") return r.detect.checks.find((c) => c.status === "error")?.detail ?? "指纹检测没有完成";
+  if (r.detect?.verdict === "inconclusive")
+    return r.detect.checks.find((c) => c.status === "error")?.detail ?? "指纹检测没有完成";
   return "没有得出综合分";
 }

@@ -222,10 +222,7 @@ function buildRequest(
     headers: { Authorization: `Bearer ${t.apiKey}` },
     body: {
       model: t.model,
-      messages: [
-        ...(req.system ? [{ role: "system", content: req.system }] : []),
-        ...req.messages,
-      ],
+      messages: [...(req.system ? [{ role: "system", content: req.system }] : []), ...req.messages],
       ...(temperature !== undefined ? { temperature } : {}),
       ...(req.maxTokens ? { [v.maxField]: req.maxTokens } : {}),
       ...(req.tools?.length
@@ -240,20 +237,13 @@ function buildRequest(
             })),
           }
         : {}),
-      ...(stream
-        ? { stream: true, ...(v.streamOptions ? { stream_options: { include_usage: true } } : {}) }
-        : {}),
+      ...(stream ? { stream: true, ...(v.streamOptions ? { stream_options: { include_usage: true } } : {}) } : {}),
     },
   };
 }
 
 /** 发请求；遇到参数不兼容的 400 自动调整后重试 */
-async function send(
-  t: Target,
-  req: ChatRequest,
-  stream: boolean,
-  signal: AbortSignal,
-): Promise<Response> {
+async function send(t: Target, req: ChatRequest, stream: boolean, signal: AbortSignal): Promise<Response> {
   let variant: Variant | null = BASE_VARIANT;
   let lastError: UpstreamError | undefined;
 
@@ -275,10 +265,7 @@ async function send(
   throw lastError ?? new UpstreamError(0, "请求失败");
 }
 
-async function withTimeout<T>(
-  timeoutMs: number,
-  fn: (signal: AbortSignal) => Promise<T>,
-): Promise<T> {
+async function withTimeout<T>(timeoutMs: number, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -384,14 +371,13 @@ function parseResponse(protocol: Protocol, json: Json): Omit<ChatResponse, "late
   if (protocol === "anthropic") {
     const blocks: Json[] = Array.isArray(json.content) ? json.content : [];
     return {
-      text: blocks.filter((b) => b.type === "text").map((b) => b.text ?? "").join(""),
+      text: blocks
+        .filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join(""),
       model: json.model,
-      usage: json.usage
-        ? { inputTokens: json.usage.input_tokens, outputTokens: json.usage.output_tokens }
-        : undefined,
-      toolCalls: blocks
-        .filter((b) => b.type === "tool_use")
-        .map((b) => ({ name: b.name, arguments: b.input })),
+      usage: json.usage ? { inputTokens: json.usage.input_tokens, outputTokens: json.usage.output_tokens } : undefined,
+      toolCalls: blocks.filter((b) => b.type === "tool_use").map((b) => ({ name: b.name, arguments: b.input })),
     };
   }
 
@@ -399,11 +385,12 @@ function parseResponse(protocol: Protocol, json: Json): Omit<ChatResponse, "late
     const parts: Json[] = json.candidates?.[0]?.content?.parts ?? [];
     const meta = json.usageMetadata;
     return {
-      text: parts.filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text).join(""),
+      text: parts
+        .filter((p) => !p.thought && typeof p.text === "string")
+        .map((p) => p.text)
+        .join(""),
       model: json.modelVersion,
-      usage: meta
-        ? { inputTokens: meta.promptTokenCount, outputTokens: meta.candidatesTokenCount }
-        : undefined,
+      usage: meta ? { inputTokens: meta.promptTokenCount, outputTokens: meta.candidatesTokenCount } : undefined,
       toolCalls: parts
         .filter((p) => p.functionCall)
         .map((p) => ({ name: p.functionCall.name, arguments: p.functionCall.args })),
@@ -448,18 +435,17 @@ function parseStreamEvent(protocol: Protocol, e: Json): { text?: string; usage?:
     const parts: Json[] = e.candidates?.[0]?.content?.parts ?? [];
     const meta = e.usageMetadata;
     return {
-      text: parts.filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text).join(""),
-      usage: meta
-        ? { inputTokens: meta.promptTokenCount, outputTokens: meta.candidatesTokenCount }
-        : undefined,
+      text: parts
+        .filter((p) => !p.thought && typeof p.text === "string")
+        .map((p) => p.text)
+        .join(""),
+      usage: meta ? { inputTokens: meta.promptTokenCount, outputTokens: meta.candidatesTokenCount } : undefined,
     };
   }
 
   return {
     text: e.choices?.[0]?.delta?.content ?? undefined,
-    usage: e.usage
-      ? { inputTokens: e.usage.prompt_tokens, outputTokens: e.usage.completion_tokens }
-      : undefined,
+    usage: e.usage ? { inputTokens: e.usage.prompt_tokens, outputTokens: e.usage.completion_tokens } : undefined,
   };
 }
 
@@ -502,5 +488,9 @@ function summarizeError(body: string): string {
     (typeof json?.error === "string" ? json.error : undefined) ??
     json?.message ??
     json?.[0]?.error?.message;
-  return String(msg ?? body ?? "").replace(/\s+/g, " ").slice(0, 300) || "无响应内容";
+  return (
+    String(msg ?? body ?? "")
+      .replace(/\s+/g, " ")
+      .slice(0, 300) || "无响应内容"
+  );
 }

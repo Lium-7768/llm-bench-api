@@ -18,10 +18,7 @@ export function ok<T>(data: T, init?: ResponseInit): Response {
 }
 
 export function fail(message: string, status = 400, code = "bad_request"): Response {
-  return Response.json(
-    { ok: false, data: null, error: { code, message } },
-    { status, headers: CORS },
-  );
+  return Response.json({ ok: false, data: null, error: { code, message } }, { status, headers: CORS });
 }
 
 export function preflight(): Response {
@@ -51,11 +48,7 @@ export interface TargetBody {
  * 密钥优先读 `Authorization: Bearer`，其次 `X-Api-Key`，最后 body.apiKey。
  * 只给 protocol 不给 baseUrl 时使用该协议的官方地址。
  */
-export function readTarget(
-  req: Request,
-  body: TargetBody,
-  { requireModel = true } = {},
-): Target | Response {
+export function readTarget(req: Request, body: TargetBody, { requireModel = true } = {}): Target | Response {
   const auth = req.headers.get("authorization");
   const apiKey =
     (auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7) : undefined)?.trim() ||
@@ -84,9 +77,7 @@ export function readTarget(
 }
 
 /** 把事件流包装成 SSE 响应：每个事件一条 `event: <type>` + `data: <json>` */
-export function sse<E extends { type: string }>(
-  events: AsyncIterable<E>,
-): Response {
+export function sse<E extends { type: string }>(events: AsyncIterable<E>): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {

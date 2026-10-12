@@ -41,8 +41,20 @@ export default function HistoryPage() {
         <div className="flex gap-2">
           <IconButton label="导入报告" icon={<FileUp size={18} />} onClick={() => fileInput.current?.click()} />
           <IconButton label="导出全部" icon={<Download size={18} />} onClick={exportJson} disabled={!history?.length} />
-          <IconButton label="清空历史" tone="danger" icon={<Trash2 size={18} />} onClick={() => setConfirmClear(true)} disabled={!history?.length} />
-          <input ref={fileInput} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
+          <IconButton
+            label="清空历史"
+            tone="danger"
+            icon={<Trash2 size={18} />}
+            onClick={() => setConfirmClear(true)}
+            disabled={!history?.length}
+          />
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json"
+            hidden
+            onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])}
+          />
         </div>
       </div>
       {note && <p className="rounded-xl bg-tint px-4 py-2.5 text-sm text-readout">{note}</p>}
@@ -74,9 +86,18 @@ export default function HistoryPage() {
                   className="group flex min-w-0 flex-1 items-center gap-3 py-3 pl-5 text-left"
                 >
                   <span className="min-w-0 flex-1 truncate font-medium group-hover:text-violet">{r.model}</span>
-                  <ChevronRight size={16} className="shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-violet" />
+                  <ChevronRight
+                    size={16}
+                    className="shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-violet"
+                  />
                 </button>
-                <IconButton label="删除这条记录" tone="ghost" size="sm" icon={<Trash2 size={15} />} onClick={() => removeHistory(r.id)} />
+                <IconButton
+                  label="删除这条记录"
+                  tone="ghost"
+                  size="sm"
+                  icon={<Trash2 size={15} />}
+                  onClick={() => removeHistory(r.id)}
+                />
               </Panel>
             </li>
           ),
@@ -87,10 +108,20 @@ export default function HistoryPage() {
         {open && <ReportView report={open} />}
       </Modal>
 
-      <Modal open={confirmClear} onClose={() => setConfirmClear(false)} title="清空全部历史记录？" icon={<Trash2 size={18} className="text-rose" />}>
-        <p className="text-sm text-readout">本浏览器里的 {history?.length ?? 0} 份报告会被删除，无法恢复。需要的话先导出备份。</p>
+      <Modal
+        open={confirmClear}
+        onClose={() => setConfirmClear(false)}
+        title="清空全部历史记录？"
+        icon={<Trash2 size={18} className="text-rose" />}
+      >
+        <p className="text-sm text-readout">
+          本浏览器里的 {history?.length ?? 0} 份报告会被删除，无法恢复。需要的话先导出备份。
+        </p>
         <div className="mt-6 flex justify-end gap-2">
-          <button className="rounded-xl border border-line px-4 py-2 text-sm hover:bg-tint" onClick={() => setConfirmClear(false)}>
+          <button
+            className="rounded-xl border border-line px-4 py-2 text-sm hover:bg-tint"
+            onClick={() => setConfirmClear(false)}
+          >
             保留
           </button>
           <button

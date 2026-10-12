@@ -82,7 +82,10 @@ function Node({ stage, idle, onToggle }: { stage: PipelineStage; idle?: boolean;
           strokeWidth="3"
           strokeLinecap="round"
           strokeDasharray={c}
-          animate={{ strokeDashoffset: c * (1 - (status === "done" ? 1 : status === "active" ? Math.max(stage.progress, 0.04) : 0)) }}
+          animate={{
+            strokeDashoffset:
+              c * (1 - (status === "done" ? 1 : status === "active" ? Math.max(stage.progress, 0.04) : 0)),
+          }}
           transition={{ type: "spring", stiffness: 60, damping: 18 }}
         />
       </svg>
@@ -91,7 +94,11 @@ function Node({ stage, idle, onToggle }: { stage: PipelineStage; idle?: boolean;
       {status === "active" && (
         <motion.span
           className="absolute inset-[3px] rounded-full"
-          style={{ background: `conic-gradient(from 0deg, transparent 0 70%, ${info.hex} 100%)`, mask: "radial-gradient(circle, transparent 62%, #000 64%)", WebkitMask: "radial-gradient(circle, transparent 62%, #000 64%)" }}
+          style={{
+            background: `conic-gradient(from 0deg, transparent 0 70%, ${info.hex} 100%)`,
+            mask: "radial-gradient(circle, transparent 62%, #000 64%)",
+            WebkitMask: "radial-gradient(circle, transparent 62%, #000 64%)",
+          }}
           animate={{ rotate: 360 }}
           transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
         />
@@ -100,18 +107,36 @@ function Node({ stage, idle, onToggle }: { stage: PipelineStage; idle?: boolean;
       <motion.span
         className={cx(
           "relative grid size-10 place-items-center rounded-full transition-colors duration-500 sm:size-14",
-          status === "done" ? "text-white" : status === "error" ? "bg-rose/10 text-rose" : status === "active" ? "bg-surface" : "bg-surface",
+          status === "done"
+            ? "text-white"
+            : status === "error"
+              ? "bg-rose/10 text-rose"
+              : status === "active"
+                ? "bg-surface"
+                : "bg-surface",
           status === "off" && "opacity-40 grayscale",
         )}
-        style={status === "done" ? { background: `linear-gradient(135deg, ${info.hex}, #2563eb)`, boxShadow: `0 8px 24px -8px ${info.hex}` } : { boxShadow: "0 2px 10px -4px rgb(15 20 48 / .15)" }}
+        style={
+          status === "done"
+            ? { background: `linear-gradient(135deg, ${info.hex}, #2563eb)`, boxShadow: `0 8px 24px -8px ${info.hex}` }
+            : { boxShadow: "0 2px 10px -4px rgb(15 20 48 / .15)" }
+        }
         animate={status === "active" ? { scale: [1, 1.06, 1] } : { scale: 1 }}
-        transition={status === "active" ? { duration: 1.6, repeat: Infinity } : { type: "spring", stiffness: 300, damping: 14 }}
+        transition={
+          status === "active" ? { duration: 1.6, repeat: Infinity } : { type: "spring", stiffness: 300, damping: 14 }
+        }
       >
-        <info.Icon size={22} className={status === "done" ? "text-white" : status === "error" ? "text-rose" : info.color} />
+        <info.Icon
+          size={22}
+          className={status === "done" ? "text-white" : status === "error" ? "text-rose" : info.color}
+        />
         <AnimatePresence>
           {(status === "done" || status === "error") && (
             <motion.span
-              className={cx("absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full ring-2 ring-surface", status === "done" ? "bg-mint text-white" : "bg-rose text-white")}
+              className={cx(
+                "absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full ring-2 ring-surface",
+                status === "done" ? "bg-mint text-white" : "bg-rose text-white",
+              )}
               initial={{ scale: 0, rotate: -90 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 500, damping: 15 }}
@@ -140,7 +165,12 @@ function Node({ stage, idle, onToggle }: { stage: PipelineStage; idle?: boolean;
       ) : (
         body
       )}
-      <p className={cx("mt-2 text-sm font-medium transition-colors", status === "active" ? "text-ink" : status === "off" ? "text-faint" : "text-readout")}>
+      <p
+        className={cx(
+          "mt-2 text-sm font-medium transition-colors",
+          status === "active" ? "text-ink" : status === "off" ? "text-faint" : "text-readout",
+        )}
+      >
         {info.name}
       </p>
       <Caption stage={stage} />
@@ -158,7 +188,10 @@ function Caption({ stage }: { stage: PipelineStage }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
         transition={{ duration: 0.25 }}
-        className={cx("mt-0.5 text-xs tabular-nums", stage.status === "active" ? "text-blue" : stage.status === "error" ? "text-rose" : "text-faint")}
+        className={cx(
+          "mt-0.5 text-xs tabular-nums",
+          stage.status === "active" ? "text-blue" : stage.status === "error" ? "text-rose" : "text-faint",
+        )}
       >
         {stage.status === "done" && score !== null ? (
           <span className="spectrum-text font-display text-base font-bold">{Math.round(score)}</span>
@@ -171,7 +204,17 @@ function Caption({ stage }: { stage: PipelineStage }) {
 }
 
 /** 两个节点之间的连线：已走过的部分是实心渐变，正在流向的部分有光束 */
-function Connector({ from, to, idle, index }: { from: PipelineStage; to: PipelineStage; idle?: boolean; index: number }) {
+function Connector({
+  from,
+  to,
+  idle,
+  index,
+}: {
+  from: PipelineStage;
+  to: PipelineStage;
+  idle?: boolean;
+  index: number;
+}) {
   const passed = from.status === "done" || from.status === "error";
   const flowing = idle || (passed && to.status === "active");
   const fromHex = STAGE_INFO[from.id].hex;
@@ -189,10 +232,18 @@ function Connector({ from, to, idle, index }: { from: PipelineStage; to: Pipelin
       {flowing && (
         <motion.div
           className="absolute inset-y-0 w-2/5 rounded-full"
-          style={{ background: `linear-gradient(90deg, transparent, ${toHex}, white, transparent)`, filter: "blur(0.5px)" }}
+          style={{
+            background: `linear-gradient(90deg, transparent, ${toHex}, white, transparent)`,
+            filter: "blur(0.5px)",
+          }}
           initial={{ x: "-120%" }}
           animate={{ x: "320%" }}
-          transition={{ duration: idle ? 2.4 : 1.3, repeat: Infinity, ease: "easeInOut", delay: idle ? index * 0.6 : 0 }}
+          transition={{
+            duration: idle ? 2.4 : 1.3,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: idle ? index * 0.6 : 0,
+          }}
         />
       )}
     </div>

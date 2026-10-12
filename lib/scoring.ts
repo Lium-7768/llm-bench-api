@@ -10,7 +10,6 @@ export function normalize(raw: string): string {
   return s;
 }
 
-
 export interface JudgeOutput {
   passed: boolean;
   score: number;
@@ -48,9 +47,7 @@ export function judge(question: Question, output: string): JudgeOutput {
     }
 
     case "contains": {
-      const candidates = [question.expected, ...(question.accept ?? [])].filter(
-        Boolean,
-      ) as string[];
+      const candidates = [question.expected, ...(question.accept ?? [])].filter(Boolean) as string[];
       const ok = candidates.some((c) => text.includes(c));
       return {
         passed: ok,
@@ -60,9 +57,7 @@ export function judge(question: Question, output: string): JudgeOutput {
     }
 
     case "regex": {
-      const patterns = [question.expected, ...(question.accept ?? [])].filter(
-        Boolean,
-      ) as string[];
+      const patterns = [question.expected, ...(question.accept ?? [])].filter(Boolean) as string[];
       const invalid: string[] = [];
       for (const p of patterns) {
         try {
@@ -145,8 +140,7 @@ export function containsAsToken(haystack: string, needle: string): boolean {
   const h = haystack.toLowerCase();
   const n = needle.toLowerCase();
 
-  const isWordChar = (ch: string | undefined): boolean =>
-    ch !== undefined && /[a-z0-9]/.test(ch);
+  const isWordChar = (ch: string | undefined): boolean => ch !== undefined && /[a-z0-9]/.test(ch);
 
   const startsWordy = isWordChar(n[0]);
   const endsWordy = isWordChar(n[n.length - 1]);

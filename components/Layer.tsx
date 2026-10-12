@@ -47,7 +47,14 @@ export function AnchoredLayer({
       left = Math.max(margin, Math.min(left, window.innerWidth - w - margin));
       const below = a.bottom + gap;
       const top = below + h > window.innerHeight - margin && a.top - gap - h > margin ? a.top - gap - h : below;
-      setStyle({ position: "fixed", top, left, width: matchWidth ? a.width : undefined, zIndex: 100, visibility: "visible" });
+      setStyle({
+        position: "fixed",
+        top,
+        left,
+        width: matchWidth ? a.width : undefined,
+        zIndex: 100,
+        visibility: "visible",
+      });
     };
     place();
     window.addEventListener("resize", place);
@@ -68,9 +75,21 @@ export function AnchoredLayer({
 }
 
 /** 悬停或聚焦时显示的文字提示 */
-export function Tooltip({ anchor, open, label }: { anchor: RefObject<HTMLElement | null>; open: boolean; label: string }) {
+export function Tooltip({
+  anchor,
+  open,
+  label,
+}: {
+  anchor: RefObject<HTMLElement | null>;
+  open: boolean;
+  label: string;
+}) {
   return (
-    <AnchoredLayer anchor={anchor} open={open} className="pointer-events-none rounded-md bg-ink px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg">
+    <AnchoredLayer
+      anchor={anchor}
+      open={open}
+      className="pointer-events-none rounded-md bg-ink px-2 py-1 text-xs whitespace-nowrap text-white shadow-lg"
+    >
       {label}
     </AnchoredLayer>
   );

@@ -70,11 +70,7 @@ function summarize(checks: CheckResult[]): Pick<DetectResult, "score" | "verdict
   const swapped = checks.some((c) => c.id === "echo" && c.status === "fail");
 
   const verdict: DetectResult["verdict"] =
-    points === judged.length
-      ? "clean"
-      : swapped || fails >= 2 || score < 60
-        ? "tampered"
-        : "suspicious";
+    points === judged.length ? "clean" : swapped || fails >= 2 || score < 60 ? "tampered" : "suspicious";
   return { score, verdict };
 }
 
@@ -110,7 +106,13 @@ async function probeBasic(t: Target, timeoutMs: number): Promise<CheckResult[]> 
           : check("usage", "用量返回", "fail", "响应缺少 usage 字段，可能被中转剥离");
 
     return [
-      check("connect", "连通性", res.text.trim() ? "pass" : "warn", res.text.trim() ? "接口正常返回" : "接口返回了空回答", res.latencyMs),
+      check(
+        "connect",
+        "连通性",
+        res.text.trim() ? "pass" : "warn",
+        res.text.trim() ? "接口正常返回" : "接口返回了空回答",
+        res.latencyMs,
+      ),
       echo,
       usage,
     ];
@@ -155,7 +157,13 @@ async function probeSystem(t: Target, timeoutMs: number): Promise<CheckResult> {
     });
     return res.text.includes(marker)
       ? check("system", "系统指令", "pass", "system 指令被正确执行", res.latencyMs)
-      : check("system", "系统指令", "fail", `回复「${truncate(res.text)}」，system 指令疑似被丢弃或改写`, res.latencyMs);
+      : check(
+          "system",
+          "系统指令",
+          "fail",
+          `回复「${truncate(res.text)}」，system 指令疑似被丢弃或改写`,
+          res.latencyMs,
+        );
   });
 }
 
@@ -183,8 +191,7 @@ async function probeStream(t: Target, timeoutMs: number): Promise<CheckResult> {
     });
     const spread = (res.lastChunkMs ?? 0) - (res.firstChunkMs ?? 0);
     const detail = `收到 ${res.chunks} 个增量块，首块 ${res.firstChunkMs ?? "-"}ms，首末间隔 ${spread}ms`;
-    const status: CheckStatus =
-      res.chunks >= 5 && spread >= 100 ? "pass" : res.chunks >= 2 ? "warn" : "fail";
+    const status: CheckStatus = res.chunks >= 5 && spread >= 100 ? "pass" : res.chunks >= 2 ? "warn" : "fail";
     return check(
       "stream",
       "真实流式",
@@ -214,7 +221,13 @@ async function probeTools(t: Target, timeoutMs: number): Promise<CheckResult> {
     });
     const call = res.toolCalls.find((c) => c.name === "get_weather");
     if (call) {
-      return check("tools", "工具调用", "pass", `调用了 get_weather(${truncate(JSON.stringify(call.arguments ?? {}))})`, res.latencyMs);
+      return check(
+        "tools",
+        "工具调用",
+        "pass",
+        `调用了 get_weather(${truncate(JSON.stringify(call.arguments ?? {}))})`,
+        res.latencyMs,
+      );
     }
     return check("tools", "工具调用", "warn", `没有发起工具调用，直接回复「${truncate(res.text)}」`, res.latencyMs);
   });

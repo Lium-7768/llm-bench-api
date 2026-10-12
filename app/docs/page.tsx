@@ -3,7 +3,11 @@ import { PRESETS, PROTOCOL_LABELS } from "@/lib/presets";
 export const metadata = { title: "API 接入 — LLM Bench" };
 
 const ENDPOINTS = [
-  ["POST", "/api/v1/check", "全面检测：指纹 → 基础 → 糖果 → 鹈鹕，按顺序执行。默认同步返回报告；stream=true 时以 SSE 推送进度"],
+  [
+    "POST",
+    "/api/v1/check",
+    "全面检测：指纹 → 基础 → 糖果 → 鹈鹕，按顺序执行。默认同步返回报告；stream=true 时以 SSE 推送进度",
+  ],
   ["POST", "/api/v1/models", "列出被测接口可用的模型"],
   ["GET", "/api/v1/questions", "题库，?category= 过滤，?withAnswers=true 带答案"],
   ["GET", "/api/v1", "索引与健康检查"],
@@ -130,7 +134,10 @@ export default function DocsPage() {
             <tbody>
               <tr>
                 <td className="mono">Authorization</td>
-                <td>请求头 <code>Bearer &lt;被测接口的 API Key&gt;</code>，也可用 <code>X-Api-Key</code> 头或 body 里的 <code>apiKey</code></td>
+                <td>
+                  请求头 <code>Bearer &lt;被测接口的 API Key&gt;</code>，也可用 <code>X-Api-Key</code> 头或 body 里的{" "}
+                  <code>apiKey</code>
+                </td>
               </tr>
               <tr>
                 <td className="mono">protocol</td>
@@ -146,21 +153,31 @@ export default function DocsPage() {
               </tr>
               <tr>
                 <td className="mono">baseUrl</td>
-                <td>被测接口地址，例如 <code>https://api.deepseek.com/v1</code>。只写域名时 OpenAI 协议会自动补 <code>/v1</code></td>
+                <td>
+                  被测接口地址，例如 <code>https://api.deepseek.com/v1</code>。只写域名时 OpenAI 协议会自动补{" "}
+                  <code>/v1</code>
+                </td>
               </tr>
               <tr>
                 <td className="mono">model</td>
-                <td>模型 ID（<code>/models</code> 接口不需要）</td>
+                <td>
+                  模型 ID（<code>/models</code> 接口不需要）
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
         <p>
-          <code>/check</code> 另有 <code>stages</code>（detect 指纹检测、basic 基础测试、candy 糖果测试、pelican 鹈鹕测试，默认全部，按这个顺序执行）、
-          <code>limit</code>（基础测试题量）、<code>seed</code>（默认 42，相同则题目和顺序相同）、<code>temperature</code>、
-          <code>concurrency</code>（1-8，默认 3）、<code>timeoutMs</code>（单题超时）、<code>stream</code>。
+          <code>/check</code> 另有 <code>stages</code>（detect 指纹检测、basic 基础测试、candy 糖果测试、pelican
+          鹈鹕测试，默认全部，按这个顺序执行）、
+          <code>limit</code>（基础测试题量）、<code>seed</code>（默认 42，相同则题目和顺序相同）、
+          <code>temperature</code>、<code>concurrency</code>（1-8，默认 3）、<code>timeoutMs</code>（单题超时）、
+          <code>stream</code>。
         </p>
-        <p>所有 JSON 响应都是 <code>{"{ ok, data, error }"}</code> 信封，失败时 <code>error.code</code> 为机器可读的错误码。</p>
+        <p>
+          所有 JSON 响应都是 <code>{"{ ok, data, error }"}</code> 信封，失败时 <code>error.code</code>{" "}
+          为机器可读的错误码。
+        </p>
       </section>
 
       <section>
@@ -173,8 +190,10 @@ export default function DocsPage() {
         <pre className="code">{CURL_ANTHROPIC}</pre>
         <h3>流式进度（JavaScript）</h3>
         <p>
-          <code>stream: true</code> 时返回 <code>text/event-stream</code>：先推送 <code>start</code>（含四步的计划），然后每一步依次推送
-          <code>stage.start</code>、若干 <code>answer</code> 或 <code>check</code>、<code>stage.done</code>，最后一个是 <code>result</code>。
+          <code>stream: true</code> 时返回 <code>text/event-stream</code>：先推送 <code>start</code>
+          （含四步的计划），然后每一步依次推送
+          <code>stage.start</code>、若干 <code>answer</code> 或 <code>check</code>、<code>stage.done</code>，最后一个是{" "}
+          <code>result</code>。
         </p>
         <pre className="code">{JS_STREAM}</pre>
         <h3>Python</h3>
@@ -204,9 +223,16 @@ export default function DocsPage() {
       <section>
         <h2>限制</h2>
         <ul>
-          <li>单次请求最长 300 秒，四步按顺序执行，超时的步骤会被跳过并记在 <code>errors</code> 里。上游慢时用 <code>limit</code> 减少题量，或用 <code>stages</code> 只跑需要的步骤。</li>
-          <li>调用失败（超时、上游报错）的题不计入得分，单独计数在 <code>failedCalls</code>。</li>
-          <li>出于安全考虑，不允许把 <code>baseUrl</code> 指向 localhost 或内网地址。</li>
+          <li>
+            单次请求最长 300 秒，四步按顺序执行，超时的步骤会被跳过并记在 <code>errors</code> 里。上游慢时用{" "}
+            <code>limit</code> 减少题量，或用 <code>stages</code> 只跑需要的步骤。
+          </li>
+          <li>
+            调用失败（超时、上游报错）的题不计入得分，单独计数在 <code>failedCalls</code>。
+          </li>
+          <li>
+            出于安全考虑，不允许把 <code>baseUrl</code> 指向 localhost 或内网地址。
+          </li>
         </ul>
       </section>
     </article>

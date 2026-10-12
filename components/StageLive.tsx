@@ -67,7 +67,7 @@ export function FlowBar({ value, color, tall }: { value: number; color?: string;
   return (
     <div className={cx("relative overflow-hidden rounded-full bg-tint-2", tall ? "h-2" : "h-1.5")}>
       <motion.div
-        className="relative h-full overflow-hidden rounded-full spectrum-bg animate-flow"
+        className="relative h-full animate-flow overflow-hidden rounded-full spectrum-bg"
         style={color ? { boxShadow: `0 0 12px ${color}66` } : undefined}
         initial={false}
         animate={{ width: `${Math.max(3, value * 100)}%` }}
@@ -103,7 +103,12 @@ function DetectLive({ plan, checks }: { plan: StagePlan; checks: Record<string, 
               <p className="text-sm font-medium">{item.label}</p>
               <AnimatePresence>
                 {c && (
-                  <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="truncate text-xs text-readout" title={c.detail}>
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="truncate text-xs text-readout"
+                    title={c.detail}
+                  >
                     {c.detail}
                   </motion.p>
                 )}
@@ -111,8 +116,24 @@ function DetectLive({ plan, checks }: { plan: StagePlan; checks: Record<string, 
             </div>
             <AnimatePresence>
               {c && (
-                <motion.span initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 420, damping: 16 }}>
-                  <Pill tone={c.status === "pass" ? "pass" : c.status === "warn" ? "warn" : c.status === "fail" ? "fail" : "muted"}>{STATUS_LABEL[c.status]}</Pill>
+                <motion.span
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 16 }}
+                >
+                  <Pill
+                    tone={
+                      c.status === "pass"
+                        ? "pass"
+                        : c.status === "warn"
+                          ? "warn"
+                          : c.status === "fail"
+                            ? "fail"
+                            : "muted"
+                    }
+                  >
+                    {STATUS_LABEL[c.status]}
+                  </Pill>
                 </motion.span>
               )}
             </AnimatePresence>
@@ -162,7 +183,11 @@ function AnswersLive({ plan, answers }: { plan: StagePlan; answers: Record<strin
           {plan.items.map((item) => {
             const a = answers[item.id];
             return (
-              <div key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-tint" title={item.label}>
+              <div
+                key={item.id}
+                className="relative aspect-square overflow-hidden rounded-lg bg-tint"
+                title={item.label}
+              >
                 {!a && <Shimmer />}
                 <AnimatePresence>
                   {a && (
@@ -172,10 +197,20 @@ function AnswersLive({ plan, answers }: { plan: StagePlan; answers: Record<strin
                       transition={{ type: "spring", stiffness: 380, damping: 18 }}
                       className={cx(
                         "absolute inset-0 grid place-items-center text-white",
-                        a.errored ? "bg-faint" : a.passed ? "bg-gradient-to-br from-blue to-cyan" : "bg-gradient-to-br from-rose to-amber",
+                        a.errored
+                          ? "bg-faint"
+                          : a.passed
+                            ? "bg-gradient-to-br from-blue to-cyan"
+                            : "bg-gradient-to-br from-rose to-amber",
                       )}
                     >
-                      {a.errored ? <Minus size={14} /> : a.passed ? <Check size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}
+                      {a.errored ? (
+                        <Minus size={14} />
+                      ) : a.passed ? (
+                        <Check size={14} strokeWidth={3} />
+                      ) : (
+                        <X size={14} strokeWidth={3} />
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -201,7 +236,9 @@ function AnswersLive({ plan, answers }: { plan: StagePlan; answers: Record<strin
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
               className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_6px_20px_-14px_rgb(37_99_235/0.4)]"
             >
-              <Pill tone={a.errored ? "muted" : a.passed ? "pass" : "fail"}>{a.errored ? "失败" : a.passed ? "通过" : "答错"}</Pill>
+              <Pill tone={a.errored ? "muted" : a.passed ? "pass" : "fail"}>
+                {a.errored ? "失败" : a.passed ? "通过" : "答错"}
+              </Pill>
               <span className="min-w-0 flex-1 truncate text-sm">{a.prompt}</span>
               <span className="text-xs text-faint tabular-nums">{a.latencyMs ? formatMs(a.latencyMs) : ""}</span>
             </motion.li>
@@ -224,14 +261,24 @@ function PelicanLive({ result }: { result?: PelicanResult }) {
     <div className="relative mx-auto grid aspect-[4/3] w-full max-w-md place-items-center overflow-hidden rounded-3xl border border-line bg-paper">
       <AnimatePresence mode="wait">
         {result ? (
-          <motion.div key="img" className="size-full" initial={{ opacity: 0, scale: 1.08, filter: "blur(16px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.9 }}>
+          <motion.div
+            key="img"
+            className="size-full"
+            initial={{ opacity: 0, scale: 1.08, filter: "blur(16px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            transition={{ duration: 0.9 }}
+          >
             <PelicanImage svg={result.svg} />
           </motion.div>
         ) : (
           <motion.div key="scan" className="absolute inset-0" exit={{ opacity: 0 }}>
             <span className="scanline absolute inset-0" />
             <div className="absolute inset-0 grid place-items-center">
-              <motion.p animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.8, repeat: Infinity }} className="text-sm text-readout">
+              <motion.p
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 1.8, repeat: Infinity }}
+                className="text-sm text-readout"
+              >
                 模型正在作画
               </motion.p>
             </div>
@@ -244,6 +291,7 @@ function PelicanLive({ result }: { result?: PelicanResult }) {
 
 /** 等待中的占位：一道光扫过 */
 function Shimmer() {
-  return <span className="absolute inset-0 animate-sweep bg-gradient-to-r from-transparent via-white/70 to-transparent" />;
+  return (
+    <span className="absolute inset-0 animate-sweep bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+  );
 }
-

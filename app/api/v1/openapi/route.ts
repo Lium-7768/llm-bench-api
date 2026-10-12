@@ -80,7 +80,9 @@ export function GET() {
           responses: {
             "200": {
               description: "模型 ID 列表",
-              content: json(envelope({ type: "object", properties: { models: { type: "array", items: { type: "string" } } } })),
+              content: json(
+                envelope({ type: "object", properties: { models: { type: "array", items: { type: "string" } } } }),
+              ),
             },
           },
         },

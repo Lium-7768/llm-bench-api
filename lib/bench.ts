@@ -29,8 +29,7 @@ export type BenchEvent =
   | { type: "answer"; done: number; total: number; answer: AnswerResult }
   | { type: "result"; result: BenchResult };
 
-const SYSTEM_PROMPT =
-  "你正在参加一个能力评测。请严格按题目要求作答，只输出答案，不要输出多余的解释或客套话。";
+const SYSTEM_PROMPT = "你正在参加一个能力评测。请严格按题目要求作答，只输出答案，不要输出多余的解释或客套话。";
 
 /** 执行一次评测，逐题产出事件，最后产出完整结果 */
 export async function* runBench(opts: BenchOptions): AsyncGenerator<BenchEvent> {

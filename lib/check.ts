@@ -72,7 +72,11 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
   const candyQuestions = selectQuestions({ categories: CANDY, seed });
   const asItems = (qs: typeof basicQuestions) => qs.map((q) => ({ id: q.id, label: q.prompt }));
   const plans: Record<Stage, StagePlan> = {
-    detect: { id: "detect", total: DETECT_CHECKS.length, items: DETECT_CHECKS.map((c) => ({ id: c.id, label: c.name })) },
+    detect: {
+      id: "detect",
+      total: DETECT_CHECKS.length,
+      items: DETECT_CHECKS.map((c) => ({ id: c.id, label: c.name })),
+    },
     basic: { id: "basic", total: basicQuestions.length, items: asItems(basicQuestions) },
     candy: { id: "candy", total: candyQuestions.length, items: asItems(candyQuestions) },
     pelican: { id: "pelican", total: 1, items: [{ id: "pelican", label: PELICAN_PROMPT }] },
@@ -143,4 +147,3 @@ function compositeScore(r: Report): number | null {
   const weight = parts.reduce((sum, [, w]) => sum + w, 0);
   return Math.round((parts.reduce((sum, [v, w]) => sum + v * w, 0) / weight) * 10) / 10;
 }
-

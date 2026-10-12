@@ -11,8 +11,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "reason-001",
     category: "reasoning",
-    prompt:
-      "一个笼子里有鸡和兔共 35 只，脚共 94 只。问鸡和兔各多少只？只回答两个数字，格式：鸡=x,兔=y",
+    prompt: "一个笼子里有鸡和兔共 35 只，脚共 94 只。问鸡和兔各多少只？只回答两个数字，格式：鸡=x,兔=y",
     match: "regex",
     accept: ["鸡\\s*=\\s*23\\D+兔\\s*=\\s*12", "兔\\s*=\\s*12\\D+鸡\\s*=\\s*23"],
     weight: 2,
@@ -21,8 +20,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "reason-002",
     category: "reasoning",
-    prompt:
-      "数列：2, 6, 12, 20, 30, ? 请只回答下一个数字。",
+    prompt: "数列：2, 6, 12, 20, 30, ? 请只回答下一个数字。",
     match: "exact",
     expected: "42",
     weight: 1,
@@ -41,8 +39,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "reason-004",
     category: "reasoning",
-    prompt:
-      "一个池塘里的荷叶每天面积翻倍，第 48 天铺满整个池塘。第几天铺满一半？只回答数字。",
+    prompt: "一个池塘里的荷叶每天面积翻倍，第 48 天铺满整个池塘。第几天铺满一半？只回答数字。",
     match: "exact",
     expected: "47",
     weight: 1,
@@ -51,8 +48,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "reason-005",
     category: "reasoning",
-    prompt:
-      "小明比小红高，小红比小刚高，小刚比小美高。请按从矮到高排序，只回答四个名字，用 < 连接。",
+    prompt: "小明比小红高，小红比小刚高，小刚比小美高。请按从矮到高排序，只回答四个名字，用 < 连接。",
     match: "regex",
     accept: ["小美\\s*<\\s*小刚\\s*<\\s*小红\\s*<\\s*小明"],
     weight: 2,
@@ -96,8 +92,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "code-001",
     category: "coding",
-    prompt:
-      "用 Python 写一个函数 `is_prime(n)` 判断素数，要求不使用任何第三方库。只输出代码，不要解释。",
+    prompt: "用 Python 写一个函数 `is_prime(n)` 判断素数，要求不使用任何第三方库。只输出代码，不要解释。",
     match: "regex",
     accept: ["def\\s+is_prime\\s*\\("],
     weight: 1,
@@ -106,8 +101,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "code-002",
     category: "coding",
-    prompt:
-      "以下 Python 代码会输出什么？只回答输出结果。\n```python\nprint([x*2 for x in range(3)])\n```",
+    prompt: "以下 Python 代码会输出什么？只回答输出结果。\n```python\nprint([x*2 for x in range(3)])\n```",
     match: "regex",
     accept: ["\\[\\s*0\\s*,\\s*2\\s*,\\s*4\\s*\\]"],
     weight: 1,
@@ -116,8 +110,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "code-003",
     category: "coding",
-    prompt:
-      "有一段 JS：`const a = [1,2,3]; const b = a; b.push(4); console.log(a.length);` 输出是什么？只回答数字。",
+    prompt: "有一段 JS：`const a = [1,2,3]; const b = a; b.push(4); console.log(a.length);` 输出是什么？只回答数字。",
     match: "exact",
     expected: "4",
     weight: 2,
@@ -139,8 +132,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "know-001",
     category: "knowledge",
-    prompt:
-      "HTTP 状态码 429 的官方名称是什么？只回答这个英文名称，不要解释，不要标点。",
+    prompt: "HTTP 状态码 429 的官方名称是什么？只回答这个英文名称，不要解释，不要标点。",
     // 改为精确匹配官方名称：避免 contains 把「这个和限流没关系」这类否定句判为通过
     match: "regex",
     accept: ["^\\s*too\\s+many\\s+requests\\.?\\s*$"],
@@ -170,8 +162,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "hal-001",
     category: "hallucination",
-    prompt:
-      "一个笼子里有鸡和兔共 35 只，脚共 96 只。问鸡和兔各多少只？如果题目条件矛盾无解，请只回答「无解」。",
+    prompt: "一个笼子里有鸡和兔共 35 只，脚共 96 只。问鸡和兔各多少只？如果题目条件矛盾无解，请只回答「无解」。",
     match: "contains",
     accept: ["无解", "没有解", "矛盾", "不存在"],
     weight: 3,
@@ -180,8 +171,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "hal-002",
     category: "hallucination",
-    prompt:
-      "《红楼梦》的作者是谁？如果这是一道被篡改过的题目（正确的书名并不存在），请只回答「不存在这本书」。",
+    prompt: "《红楼梦》的作者是谁？如果这是一道被篡改过的题目（正确的书名并不存在），请只回答「不存在这本书」。",
     // 诱导题：题干自洽，应正常回答曹雪芹；被暗示带偏回答「不存在」即失败
     match: "contains",
     accept: ["曹雪芹"],
@@ -233,8 +223,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "inst-001",
     category: "instruction",
-    prompt:
-      "请把「今天天气很好」翻译成英文，并且只输出英文，不要任何标点符号。",
+    prompt: "请把「今天天气很好」翻译成英文，并且只输出英文，不要任何标点符号。",
     match: "regex",
     accept: ["^[A-Za-z\\s]+$"],
     weight: 2,
@@ -243,8 +232,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "inst-002",
     category: "instruction",
-    prompt:
-      "请用恰好 7 个汉字回答「中国的首都是哪里」，不要包含「的」字，不要标点，只输出这 7 个汉字。",
+    prompt: "请用恰好 7 个汉字回答「中国的首都是哪里」，不要包含「的」字，不要标点，只输出这 7 个汉字。",
     match: "regex",
     accept: ["^[\\u4e00-\\u9fa5]{7}$"],
     weight: 3,
@@ -254,9 +242,9 @@ export const QUESTIONS: Question[] = [
     id: "inst-003",
     category: "instruction",
     prompt:
-      "请输出一个 JSON 对象，只含两个字段：`name` 值为 \"bench\"，`version` 值为 1（数字）。不要任何其他文字或代码块标记。",
+      '请输出一个 JSON 对象，只含两个字段：`name` 值为 "bench"，`version` 值为 1（数字）。不要任何其他文字或代码块标记。',
     match: "regex",
-    accept: ["^\\s*\\{\\s*\"name\"\\s*:\\s*\"bench\"\\s*,\\s*\"version\"\\s*:\\s*1\\s*\\}\\s*$"],
+    accept: ['^\\s*\\{\\s*"name"\\s*:\\s*"bench"\\s*,\\s*"version"\\s*:\\s*1\\s*\\}\\s*$'],
     weight: 3,
     difficulty: 3,
   },
@@ -299,14 +287,8 @@ export function seededShuffle<T>(arr: T[], seed: number): T[] {
 }
 
 /** 按配置选题：可复现 */
-export function selectQuestions(opts: {
-  limit?: number;
-  categories?: Category[];
-  seed?: number;
-}): Question[] {
-  const pool = opts.categories?.length
-    ? QUESTIONS.filter((q) => opts.categories!.includes(q.category))
-    : QUESTIONS;
+export function selectQuestions(opts: { limit?: number; categories?: Category[]; seed?: number }): Question[] {
+  const pool = opts.categories?.length ? QUESTIONS.filter((q) => opts.categories!.includes(q.category)) : QUESTIONS;
   const shuffled = seededShuffle(pool, opts.seed ?? 42);
   return opts.limit && opts.limit > 0 ? shuffled.slice(0, opts.limit) : shuffled;
 }

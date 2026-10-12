@@ -1,8 +1,7 @@
 import { chat, hostOf } from "./llm";
 import type { PelicanResult, Target } from "./types";
 
-export const PELICAN_PROMPT =
-  "Generate an SVG of a pelican riding a bicycle. Output only the SVG code, nothing else.";
+export const PELICAN_PROMPT = "Generate an SVG of a pelican riding a bicycle. Output only the SVG code, nothing else.";
 
 /** 让模型画一只骑自行车的鹈鹕。不打分，只把 SVG 交给人看 */
 export async function runPelican(

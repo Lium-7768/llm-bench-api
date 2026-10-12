@@ -22,7 +22,11 @@ export function GET() {
       { method: "GET", path: "/api/v1/openapi", desc: "OpenAPI 3.1 描述" },
       { method: "GET", path: "/api/v1/questions", desc: "题库" },
       { method: "POST", path: "/api/v1/models", desc: "列出被测接口可用的模型" },
-      { method: "POST", path: "/api/v1/check", desc: "全面检测：指纹 → 基础 → 糖果 → 鹈鹕，按顺序执行；stream=true 时以 SSE 推送进度" },
+      {
+        method: "POST",
+        path: "/api/v1/check",
+        desc: "全面检测：指纹 → 基础 → 糖果 → 鹈鹕，按顺序执行；stream=true 时以 SSE 推送进度",
+      },
     ],
     auth: "Authorization: Bearer <被测接口的 API Key>，仅在单次请求中转发给上游",
     categories: ALL_CATEGORIES.map((id) => ({ id, label: CATEGORY_LABELS[id] })),

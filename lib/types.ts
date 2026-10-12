@@ -16,13 +16,7 @@ export interface Target {
 
 // ---------------------------------------------------------------- 能力评测
 
-export type Category =
-  | "reasoning"
-  | "reading"
-  | "coding"
-  | "knowledge"
-  | "hallucination"
-  | "instruction";
+export type Category = "reasoning" | "reading" | "coding" | "knowledge" | "hallucination" | "instruction";
 
 export interface Question {
   id: string;
@@ -137,8 +131,7 @@ export interface Usage {
 
 /** 统一响应信封 */
 export type Envelope<T> =
-  | { ok: true; data: T; error: null }
-  | { ok: false; data: null; error: { code: string; message: string } };
+  { ok: true; data: T; error: null } | { ok: false; data: null; error: { code: string; message: string } };
 
 // ---------------------------------------------------------------- 全面检测
 

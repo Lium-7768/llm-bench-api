@@ -100,7 +100,10 @@ export function Select<T extends string | number>({
   const trigger = useRef<HTMLButtonElement>(null);
   const layer = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const current = Math.max(0, options.findIndex((o) => o.value === value));
+  const current = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
   const [active, setActive] = useState(current);
 
   useOutside(open, [trigger, layer], () => setOpen(false));
@@ -144,7 +147,11 @@ export function Select<T extends string | number>({
         aria-haspopup="listbox"
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onKeyDown}
-        className={cx(inputClass, "flex items-center gap-2 text-left", open && "border-violet bg-surface shadow-[0_0_0_4px_rgb(124_58_237/0.12)]")}
+        className={cx(
+          inputClass,
+          "flex items-center gap-2 text-left",
+          open && "border-violet bg-surface shadow-[0_0_0_4px_rgb(124_58_237/0.12)]",
+        )}
       >
         <span className="min-w-0 flex-1 truncate">{options[current]?.label}</span>
         <motion.span animate={{ rotate: open ? 180 : 0 }} className="shrink-0 text-readout">
@@ -183,7 +190,8 @@ export function Combobox({
 
   // 刚打开或值正好是某个候选时显示全部，输入过程中按关键字过滤
   const q = value.trim().toLowerCase();
-  const filtered = typed && q && !suggestions.includes(value) ? suggestions.filter((s) => s.toLowerCase().includes(q)) : suggestions;
+  const filtered =
+    typed && q && !suggestions.includes(value) ? suggestions.filter((s) => s.toLowerCase().includes(q)) : suggestions;
   const options = filtered.map((s) => ({ value: s, label: s }));
 
   const pick = (o: Option<string>) => {
@@ -232,7 +240,15 @@ export function Combobox({
         onKeyDown={onKeyDown}
       />
       <AnchoredLayer anchor={input} open={open && suggestions.length > 0} matchWidth gap={6} layerRef={layer}>
-        <ListBox id={id} options={options} active={active} selected={value} onPick={pick} onHover={setActive} empty="没有匹配的模型，直接使用输入的 ID" />
+        <ListBox
+          id={id}
+          options={options}
+          active={active}
+          selected={value}
+          onPick={pick}
+          onHover={setActive}
+          empty="没有匹配的模型，直接使用输入的 ID"
+        />
       </AnchoredLayer>
     </>
   );

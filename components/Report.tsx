@@ -51,7 +51,11 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
 
   return (
     <div className="flex flex-col gap-5">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+      >
         <Panel className="relative overflow-hidden p-6 sm:p-8">
           <div className="pointer-events-none absolute -top-40 -left-32 size-[30rem] rounded-full bg-violet/10 blur-3xl" />
           <div className="relative flex flex-col items-center gap-8 sm:flex-row sm:items-center">
@@ -64,7 +68,9 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
                 <span>用时 {formatMs(report.durationMs)}</span>
               </p>
               <h1 className="font-display text-2xl font-semibold break-all sm:text-3xl">{report.model}</h1>
-              <p className="text-sm text-readout">综合得分 = 指纹检测 30% + 基础测试 40% + 糖果测试 30%，鹈鹕测试不计分。</p>
+              <p className="text-sm text-readout">
+                综合得分 = 指纹检测 30% + 基础测试 40% + 糖果测试 30%，鹈鹕测试不计分。
+              </p>
               {actions && <div className="mt-1 flex justify-center gap-2 sm:justify-start">{actions}</div>}
             </div>
           </div>
@@ -79,54 +85,79 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
 
       {/* 按容器宽度排列：页面里 4 列，弹窗里 2 列 */}
       <div className="@container">
-      <div className="grid gap-4 @xl:grid-cols-2 @5xl:grid-cols-4">
-        {report.stages.map((stage, i) => (
-          <motion.div
-            key={stage}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
-          >
-            <Tile stage={stage} onOpen={() => setOpen(stage)} disabled={!report[stage]}>
-              {stage === "detect" && detect && (
-                <>
-                  <BigNumber value={detect.score} unit="诚信分" />
-                  <span className="self-start">
-                    <Pill tone={VERDICT_TONE[detect.verdict]}>{VERDICT_LABEL[detect.verdict]}</Pill>
-                  </span>
-                  <div className="mt-auto grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    {detect.checks.map((c) => (
-                      <span key={c.id} className="flex items-center gap-2 text-xs" title={c.detail}>
-                        <i className={cx("size-2 shrink-0 rounded-full", DOT[c.status])} />
-                        {c.name}
-                      </span>
-                    ))}
+        <div className="grid gap-4 @xl:grid-cols-2 @5xl:grid-cols-4">
+          {report.stages.map((stage, i) => (
+            <motion.div
+              key={stage}
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+              <Tile stage={stage} onOpen={() => setOpen(stage)} disabled={!report[stage]}>
+                {stage === "detect" && detect && (
+                  <>
+                    <BigNumber value={detect.score} unit="诚信分" />
+                    <span className="self-start">
+                      <Pill tone={VERDICT_TONE[detect.verdict]}>{VERDICT_LABEL[detect.verdict]}</Pill>
+                    </span>
+                    <div className="mt-auto grid grid-cols-2 gap-x-3 gap-y-1.5">
+                      {detect.checks.map((c) => (
+                        <span key={c.id} className="flex items-center gap-2 text-xs" title={c.detail}>
+                          <i className={cx("size-2 shrink-0 rounded-full", DOT[c.status])} />
+                          {c.name}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {(stage === "basic" || stage === "candy") && report[stage] && (
+                  <BenchTile result={report[stage]!} detailed={stage === "basic"} />
+                )}
+                {stage === "pelican" && pelican && (
+                  <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line">
+                    <PelicanImage svg={pelican.svg} />
                   </div>
-                </>
-              )}
-              {(stage === "basic" || stage === "candy") && report[stage] && <BenchTile result={report[stage]!} detailed={stage === "basic"} />}
-              {stage === "pelican" && pelican && (
-                <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line">
-                  <PelicanImage svg={pelican.svg} />
-                </div>
-              )}
-              {!report[stage] && <p className="m-auto text-sm text-faint">没有结果</p>}
-            </Tile>
-          </motion.div>
-        ))}
-      </div>
+                )}
+                {!report[stage] && <p className="m-auto text-sm text-faint">没有结果</p>}
+              </Tile>
+            </motion.div>
+          ))}
+        </div>
       </div>
 
-      <Modal open={open === "detect"} onClose={() => setOpen(null)} title="指纹检测明细" icon={<StageIcon stage="detect" />} wide>
+      <Modal
+        open={open === "detect"}
+        onClose={() => setOpen(null)}
+        title="指纹检测明细"
+        icon={<StageIcon stage="detect" />}
+        wide
+      >
         {detect && <DetectDetail result={detect} />}
       </Modal>
-      <Modal open={open === "basic"} onClose={() => setOpen(null)} title="基础测试明细" icon={<StageIcon stage="basic" />} wide>
+      <Modal
+        open={open === "basic"}
+        onClose={() => setOpen(null)}
+        title="基础测试明细"
+        icon={<StageIcon stage="basic" />}
+        wide
+      >
         {basic && <BenchDetail result={basic} />}
       </Modal>
-      <Modal open={open === "candy"} onClose={() => setOpen(null)} title="糖果测试明细" icon={<StageIcon stage="candy" />} wide>
+      <Modal
+        open={open === "candy"}
+        onClose={() => setOpen(null)}
+        title="糖果测试明细"
+        icon={<StageIcon stage="candy" />}
+        wide
+      >
         {candy && <BenchDetail result={candy} />}
       </Modal>
-      <Modal open={open === "pelican"} onClose={() => setOpen(null)} title="鹈鹕测试" icon={<StageIcon stage="pelican" />}>
+      <Modal
+        open={open === "pelican"}
+        onClose={() => setOpen(null)}
+        title="鹈鹕测试"
+        icon={<StageIcon stage="pelican" />}
+      >
         {pelican && <PelicanDetail result={pelican} />}
       </Modal>
     </div>
@@ -157,7 +188,14 @@ function BenchTile({ result, detailed }: { result: BenchResult; detailed: boolea
             <span
               key={a.questionId}
               title={a.prompt}
-              className={cx("aspect-square rounded-md", a.errored ? "bg-faint/50" : a.passed ? "bg-gradient-to-br from-blue to-cyan" : "bg-gradient-to-br from-rose to-amber")}
+              className={cx(
+                "aspect-square rounded-md",
+                a.errored
+                  ? "bg-faint/50"
+                  : a.passed
+                    ? "bg-gradient-to-br from-blue to-cyan"
+                    : "bg-gradient-to-br from-rose to-amber",
+              )}
             />
           ))}
         </div>
@@ -174,13 +212,30 @@ const DOT: Record<CheckStatus, string> = {
   error: "bg-faint/60",
 };
 
-function Tile({ stage, onOpen, disabled, children }: { stage: Stage; onOpen: () => void; disabled?: boolean; children: ReactNode }) {
+function Tile({
+  stage,
+  onOpen,
+  disabled,
+  children,
+}: {
+  stage: Stage;
+  onOpen: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
   return (
     <Panel className="flex h-full min-h-64 flex-col gap-3 p-5">
       <header className="flex items-center gap-2.5">
         <StageIcon stage={stage} />
         <h2 className="flex-1 font-semibold">{STAGE_INFO[stage].name}</h2>
-        <IconButton label="查看明细" size="sm" tone="ghost" icon={<Maximize2 size={16} />} onClick={onOpen} disabled={disabled} />
+        <IconButton
+          label="查看明细"
+          size="sm"
+          tone="ghost"
+          icon={<Maximize2 size={16} />}
+          onClick={onOpen}
+          disabled={disabled}
+        />
       </header>
       {children}
     </Panel>
@@ -191,7 +246,9 @@ function BigNumber({ value, unit }: { value: number | null; unit: string }) {
   const shown = useCountUp(value, 1400);
   return (
     <p className="flex items-baseline gap-2">
-      <strong className="spectrum-text font-display text-4xl font-bold tabular-nums">{shown === null ? "—" : Math.round(shown)}</strong>
+      <strong className="spectrum-text font-display text-4xl font-bold tabular-nums">
+        {shown === null ? "—" : Math.round(shown)}
+      </strong>
       <span className="text-xs text-readout">{unit}</span>
     </p>
   );
@@ -215,7 +272,11 @@ export function BenchDetail({ result }: { result: BenchResult }) {
           </div>
         ))}
       </div>
-      {result.failedCalls > 0 && <p className="rounded-xl bg-amber/12 px-4 py-2.5 text-sm text-amber">{result.failedCalls} 题调用失败，没有计入得分。</p>}
+      {result.failedCalls > 0 && (
+        <p className="rounded-xl bg-amber/12 px-4 py-2.5 text-sm text-amber">
+          {result.failedCalls} 题调用失败，没有计入得分。
+        </p>
+      )}
       {result.error && <p className="rounded-xl bg-rose/12 px-4 py-2.5 text-sm text-rose">{result.error}</p>}
       <AnswerList answers={result.answers} />
       <p className="text-xs text-faint">
@@ -232,7 +293,9 @@ export function AnswerList({ answers }: { answers: AnswerResult[] }) {
         <li key={a.questionId}>
           <details className="group">
             <summary className="flex cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
-              <Pill tone={a.errored ? "muted" : a.passed ? "pass" : "fail"}>{a.errored ? "失败" : a.passed ? "通过" : "答错"}</Pill>
+              <Pill tone={a.errored ? "muted" : a.passed ? "pass" : "fail"}>
+                {a.errored ? "失败" : a.passed ? "通过" : "答错"}
+              </Pill>
               <span className="shrink-0 text-xs text-faint">{CATEGORY_LABELS[a.category]}</span>
               <span className="min-w-0 flex-1 truncate text-readout group-hover:text-ink">{a.prompt}</span>
               <span className="text-xs text-faint tabular-nums">{a.latencyMs ? formatMs(a.latencyMs) : ""}</span>
@@ -255,7 +318,9 @@ export function DetectDetail({ result }: { result: DetectResult }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <Pill tone={VERDICT_TONE[result.verdict]}>{VERDICT_LABEL[result.verdict]}</Pill>
-        <span className="text-sm text-readout">诚信分 {result.score ?? "—"}，用时 {formatMs(result.durationMs)}</span>
+        <span className="text-sm text-readout">
+          诚信分 {result.score ?? "—"}，用时 {formatMs(result.durationMs)}
+        </span>
       </div>
       <ul className="divide-y divide-line border-y border-line">
         {result.checks.map((c) => (
@@ -286,7 +351,11 @@ export function PelicanDetail({ result }: { result: PelicanResult }) {
           用时 {formatMs(result.durationMs)}
           {result.usage?.outputTokens ? `，${result.usage.outputTokens} tokens` : ""}
         </span>
-        <IconButton label={code ? "收起源码" : "查看源码"} icon={<Code2 size={17} />} onClick={() => setCode((v) => !v)} />
+        <IconButton
+          label={code ? "收起源码" : "查看源码"}
+          icon={<Code2 size={17} />}
+          onClick={() => setCode((v) => !v)}
+        />
       </div>
       {code && (
         <pre className="max-h-80 overflow-auto rounded-xl border border-line bg-paper p-3.5 font-mono text-xs whitespace-pre-wrap">
