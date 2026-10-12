@@ -42,6 +42,26 @@ export function preflight() {
   });
 }
 
+/**
+ * 包装读取存储的调用：当存储（Redis）不可用时，返回结构化的 503，
+ * 而不是让框架抛出空 body 的 500 —— 保证 API 始终返回统一信封结构。
+ */
+export async function withStore<T>(
+  fn: () => Promise<T>,
+  okBuilder: (data: T) => Response,
+): Promise<Response> {
+  try {
+    return okBuilder(await fn());
+  } catch (e) {
+    return fail(
+      `存储服务不可用：${(e as Error).message}`,
+      503,
+      "storage_unavailable",
+      { hint: "请检查 UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN 是否正确，或移除它们以回退到内存存储。" },
+    );
+  }
+}
+
 /** 从请求里取 API Key：优先 header，其次 body */
 export function extractApiKey(req: Request, bodyKey?: string): string | undefined {
   const auth = req.headers.get("authorization");

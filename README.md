@@ -4,7 +4,7 @@ API 优先的大模型能力评测服务。前端只负责渲染后端返回的�
 
 - 框架：Next.js 16（App Router）+ TypeScript
 - 部署：Vercel 原生支持
-- 存储：默认进程内存（可替换为 Vercel KV / Postgres）
+- 存储：默认进程内存，配置 `UPSTASH_REDIS_REST_URL`/`TOKEN` 后自动切换为 Redis 持久化
 - 密钥：由调用方自带，服务端只做转发，不写入存储、日志或响应
 
 ## 快速开始
@@ -154,11 +154,45 @@ curl https://<你的域名>/api/v1
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `ALLOW_PRIVATE_BASE_URL` | `false` | 允许 `baseUrl` 指向 localhost/内网，用于评测 Ollama、LM Studio 等本地模型。**公网部署切勿开启**，否则接口会变成内网探测工具。 |
+| `UPSTASH_REDIS_REST_URL` | 未设置 | 设置后启用 Redis 持久化存储。 |
+| `UPSTASH_REDIS_REST_TOKEN` | 未设置 | 与上面配套的 token。 |
+
+## 存储：两种后端，自动切换
+
+| 条件 | 后端 | 行为 |
+| --- | --- | --- |
+| 未配置 `UPSTASH_*` | 进程内存 | 零配置，适合本地开发。Serverless 冷启动会清空记录。 |
+| 配置了 `UPSTASH_*` | Upstash Redis | 数据持久化，记录保留 30 天，最多 200 条历史。 |
+
+启用持久化（推荐用于生产）：
+
+1. 在 Vercel 控制台打开项目 → **Integrations** → 接入 **Upstash Redis**（有免费额度）
+2. 集成会自动注入上面两个环境变量，无需手动填写
+3. 重新部署即可
+
+也可以自己注册 Upstash 后手动添加这两个环境变量。
+
+`GET /api/v1/health` 会如实报告存储状态，可直接用来确认是否已持久化：
+
+```json
+{
+  "status": "healthy",
+  "storage": {
+    "backend": "redis",
+    "persistent": true,
+    "ok": true,
+    "note": "已启用 Redis 持久化，记录不会因冷启动丢失。"
+  }
+}
+```
+
+如果 Redis 配置错误，健康检查会返回 **503** 且 `status` 为 `degraded`；其余读取接口会返回
+`storage_unavailable` 错误并附带排查提示，不会静默丢数据。
 
 ## 已知限制
 
-- **存储是内存的**：Vercel 是无状态 Serverless，冷启动后历史记录会清空。长期保存请把
-  `lib/store.ts` 实现替换为 Vercel KV / Upstash Redis / Postgres，函数签名不用改。
+- **未配置 Redis 时存储是内存的**：Vercel 是无状态 Serverless，冷启动会清空历史记录。
+  按上面的步骤接入 Upstash 即可持久化，代码无需改动。
 - **同步执行**：评测在单个 HTTP 请求内跑完，题量大时可能超出函数时限。需要跑大规模评测
   可以改成「入队 + 轮询」，`lib/runner.ts` 的 `onProgress` 已经预留了回调。
 - **禁止内网地址**：出于 SSRF 防护，`baseUrl` 不能指向 localhost 和内网网段（除非显式开启
@@ -188,7 +222,7 @@ lib/
   provider.ts        OpenAI 兼容客户端
   fingerprint.ts     指纹检测逻辑
   runner.ts          评测编排
-  store.ts           存储（可替换）
+  store.ts           存储（内存 / Redis 自动切换）
   http.ts            响应封装与安全检查
   client.ts          前端 API 客户端
 ```

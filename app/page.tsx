@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, type CategoryInfo } from "@/lib/client";
+import { api, type CategoryInfo, type StorageInfo } from "@/lib/client";
 
 export default function Home() {
-  const [health, setHealth] = useState<{ status: string; totalQuestions: number } | null>(null);
+  const [health, setHealth] = useState<{
+    status: string;
+    totalQuestions: number;
+    storage: StorageInfo;
+  } | null>(null);
   const [cats, setCats] = useState<CategoryInfo[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
@@ -51,6 +55,26 @@ export default function Home() {
           <div className="muted small">评测维度</div>
           <div className="stat">{cats.length}</div>
           <div className="muted small">覆盖推理 / 代码 / 幻觉等</div>
+        </div>
+        <div className="card">
+          <div className="muted small">存储后端</div>
+          <div style={{ marginTop: 8 }}>
+            {health ? (
+              <span
+                className={`badge ${
+                  !health.storage.ok ? "bad" : health.storage.persistent ? "ok" : "warn"
+                }`}
+              >
+                {health.storage.backend}
+                {health.storage.persistent ? " · 持久化" : " · 内存"}
+              </span>
+            ) : (
+              <span className="badge muted">检测中…</span>
+            )}
+          </div>
+          <div className="muted small" style={{ marginTop: 6 }}>
+            {health?.storage.note ?? ""}
+          </div>
         </div>
       </div>
 

@@ -124,6 +124,14 @@ export interface DetectRequestBody {
   apiKey: string;
 }
 
+export interface StorageInfo {
+  backend: "redis" | "memory";
+  persistent: boolean;
+  ok: boolean;
+  error: string | null;
+  note: string;
+}
+
 export const api = {
   index: () =>
     request<{
@@ -136,7 +144,13 @@ export const api = {
       categories: Array<{ id: string; label: string }>;
     }>("/api/v1"),
 
-  health: () => request<{ status: string; time: string; totalQuestions: number }>("/api/v1/health"),
+  health: () =>
+    request<{
+      status: string;
+      time: string;
+      totalQuestions: number;
+      storage: StorageInfo;
+    }>("/api/v1/health"),
 
   categories: () =>
     request<{ total: number; categories: CategoryInfo[] }>("/api/v1/categories"),

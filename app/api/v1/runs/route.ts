@@ -5,6 +5,7 @@ import {
   isSafeBaseUrl,
   ok,
   preflight,
+  withStore,
 } from "@/lib/http";
 import { ALL_CATEGORIES } from "@/lib/bank";
 import { listRuns } from "@/lib/store";
@@ -18,11 +19,16 @@ export function OPTIONS() {
 }
 
 /** GET /api/v1/runs?limit=20 —— 评测历史（不含完整答案，减小体积） */
-export function GET(req: Request) {
+export async function GET(req: Request) {
   const url = new URL(req.url);
   const limit = Math.min(Number(url.searchParams.get("limit") ?? "20") || 20, 100);
-  const runs = listRuns(limit).map(summarizeRun);
-  return ok({ total: runs.length, runs });
+  return withStore(
+    () => listRuns(limit),
+    (runs) => {
+      const summaries = runs.map(summarizeRun);
+      return ok({ total: summaries.length, runs: summaries });
+    },
+  );
 }
 
 interface RunBody {

@@ -50,7 +50,7 @@ export async function executeRun(input: ExecuteInput): Promise<Run> {
       baseUrlMasked: maskBaseUrl(config.baseUrl),
     },
   };
-  saveRun(run);
+  await saveRun(run);
   input.onProgress?.(run);
 
   const baseOpts: CallOptions = {
@@ -170,7 +170,7 @@ export async function executeRun(input: ExecuteInput): Promise<Run> {
     run.error = "没有选出任何题目，请检查 categories / limit 参数。";
   }
 
-  saveRun(run);
+  await saveRun(run);
   return run;
 }
 
