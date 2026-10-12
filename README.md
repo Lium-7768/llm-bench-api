@@ -17,23 +17,23 @@ pnpm dev          # http://localhost:3000
 
 ## 接口
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/v1/check` | 全面检测，四步按顺序执行；默认同步返回报告，`stream: true` 时以 SSE 推送进度 |
-| POST | `/api/v1/models` | 列出被测接口可用的模型 |
-| GET | `/api/v1/questions` | 题库，`?category=`、`?withAnswers=true` |
-| GET | `/api/v1` | 索引与健康检查 |
-| GET | `/api/v1/openapi` | OpenAPI 3.1 描述 |
+| 方法 | 路径                | 说明                                                                         |
+| ---- | ------------------- | ---------------------------------------------------------------------------- |
+| POST | `/api/v1/check`     | 全面检测，四步按顺序执行；默认同步返回报告，`stream: true` 时以 SSE 推送进度 |
+| POST | `/api/v1/models`    | 列出被测接口可用的模型                                                       |
+| GET  | `/api/v1/questions` | 题库，`?category=`、`?withAnswers=true`                                      |
+| GET  | `/api/v1`           | 索引与健康检查                                                               |
+| GET  | `/api/v1/openapi`   | OpenAPI 3.1 描述                                                             |
 
 所有 POST 接口用同样的字段指定被测接口：
 
-| 字段 | 说明 |
-| --- | --- |
-| `Authorization: Bearer <key>` | 被测接口的 API Key，也可用 `X-Api-Key` 头或 body 里的 `apiKey` |
-| `protocol` | `openai` / `anthropic` / `gemini`，不填时按地址推断 |
-| `baseUrl` | 被测接口地址；只给 `protocol` 时使用官方地址 |
-| `model` | 模型 ID |
-| `stages` | `/check` 专用：`detect` / `basic` / `candy` / `pelican`，默认全部 |
+| 字段                          | 说明                                                              |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `Authorization: Bearer <key>` | 被测接口的 API Key，也可用 `X-Api-Key` 头或 body 里的 `apiKey`    |
+| `protocol`                    | `openai` / `anthropic` / `gemini`，不填时按地址推断               |
+| `baseUrl`                     | 被测接口地址；只给 `protocol` 时使用官方地址                      |
+| `model`                       | 模型 ID                                                           |
+| `stages`                      | `/check` 专用：`detect` / `basic` / `candy` / `pelican`，默认全部 |
 
 JSON 响应统一为 `{ ok, data, error }`。
 
@@ -46,12 +46,12 @@ curl -X POST http://localhost:3000/api/v1/check \
 
 四个步骤：
 
-| 步骤 | 内容 | 综合分权重 |
-| --- | --- | --- |
-| `detect` 指纹检测 | 连通性、模型回显、用量、身份自报、系统指令、上下文记忆、真实流式、工具调用 | 30% |
-| `basic` 基础测试 | 推理、阅读、代码、知识、指令遵循 | 40% |
-| `candy` 糖果测试 | 改过条件的熟题、不存在的文献，测幻觉 | 30% |
-| `pelican` 鹈鹕测试 | 用 SVG 画一只骑自行车的鹈鹕 | 不计分 |
+| 步骤               | 内容                                                                       | 综合分权重 |
+| ------------------ | -------------------------------------------------------------------------- | ---------- |
+| `detect` 指纹检测  | 连通性、模型回显、用量、身份自报、系统指令、上下文记忆、真实流式、工具调用 | 30%        |
+| `basic` 基础测试   | 推理、阅读、代码、知识、指令遵循                                           | 40%        |
+| `candy` 糖果测试   | 改过条件的熟题、不存在的文献，测幻觉                                       | 30%        |
+| `pelican` 鹈鹕测试 | 用 SVG 画一只骑自行车的鹈鹕                                                | 不计分     |
 
 综合分只计算有结果的步骤。
 
@@ -59,11 +59,11 @@ curl -X POST http://localhost:3000/api/v1/check \
 
 ## 支持的服务
 
-| 协议 | 覆盖 |
-| --- | --- |
-| `openai` | OpenAI、DeepSeek、Kimi、通义千问、豆包、智谱 GLM、xAI Grok、OpenRouter、硅基流动，以及兼容 OpenAI 格式的中转站 |
-| `anthropic` | Claude 官方接口，以及兼容 Anthropic 格式的中转 |
-| `gemini` | Google Gemini 官方接口 |
+| 协议        | 覆盖                                                                                                           |
+| ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `openai`    | OpenAI、DeepSeek、Kimi、通义千问、豆包、智谱 GLM、xAI Grok、OpenRouter、硅基流动，以及兼容 OpenAI 格式的中转站 |
+| `anthropic` | Claude 官方接口，以及兼容 Anthropic 格式的中转                                                                 |
+| `gemini`    | Google Gemini 官方接口                                                                                         |
 
 部分推理模型不接受 `temperature` 或 `max_tokens` 参数。遇到这种 400 错误时会自动调整参数重试。
 
@@ -86,14 +86,50 @@ curl -X POST http://localhost:3000/api/v1/check \
 - 探测本身没跑通的记为 `error`，不参与打分
 - 响应声明的模型换成了别家，直接判为「很可能掺水」
 
-## 部署到 Vercel
+## 开发
 
 ```bash
-pnpm dlx vercel login
-pnpm dlx vercel --prod
+pnpm install          # 同时安装 Git 钩子（Husky）
+pnpm dev
 ```
 
-不需要任何环境变量。`vercel.json` 默认使用 `sin1`（新加坡）区域。OpenAI 屏蔽了来自香港 `hkg1` 区域的流量，所以没有用香港。
+| 命令                                           | 作用                                           |
+| ---------------------------------------------- | ---------------------------------------------- |
+| `pnpm lint` / `pnpm format` / `pnpm typecheck` | ESLint、Prettier、类型检查                     |
+| `pnpm smoke`                                   | 对已启动的服务跑冒烟测试，不需要模型密钥       |
+| `pnpm mock`                                    | 本地模拟上游，没有真实密钥也能把四步完整跑一遍 |
+
+- 提交信息使用约定式提交，描述用中文，例如 `feat(detect): 新增工具调用探测`。提交时会自动检查并格式化改动的文件。
+- 架构、题目清单、支持的模型和开发约定见 [AGENTS.md](AGENTS.md)。
+
+## 分支、CI 与发版
+
+主分支是 `dev`，改动通过 PR 合入。
+
+| 触发                           | 做什么                                                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| 向 `dev` 发起 PR、推送到 `dev` | GitHub Actions 跑提交信息校验（仅 PR）、ESLint、格式检查、类型检查、生产构建、冒烟测试；Vercel 自动部署预览环境 |
+| 推送 `vX.Y.Z` 标签             | 先跑完整 CI，再创建 GitHub Release，最后把 `release` 分支快进到该版本，Vercel 部署生产环境                      |
+
+发版只需在最新的 `dev` 上执行一条命令：
+
+```bash
+pnpm release:patch    # 或 release:minor / release:major
+```
+
+脚本会升 `package.json` 版本、提交、打标签并推送，后续由 GitHub Actions 完成。**只有发版才会更新生产环境**，推送到 `dev` 只会更新预览环境。
+
+## 部署到 Vercel
+
+项目开源，不需要在 GitHub 里保存任何 Vercel 令牌。首次配置：
+
+1. 在 Vercel 导入这个 GitHub 仓库，框架会自动识别为 Next.js，不需要任何环境变量。
+2. 在项目 Settings → Git → Production Branch 中把生产分支设为 `release`。
+3. 执行一次 `pnpm release:patch`，生成 `release` 分支并完成第一次生产部署。
+
+之后 PR 和 `dev` 的推送都会得到预览地址，生产环境只跟随版本发布更新。
+
+`vercel.json` 默认使用 `sin1`（新加坡）区域。OpenAI 屏蔽了来自香港 `hkg1` 区域的流量，所以没有用香港。
 
 `/check` 的函数时限是 300 秒，四步按顺序执行，整体时限 285 秒。时间不够时后面的步骤会被跳过并记在 `errors` 里，避免函数被平台强行终止。
 如果你的套餐时限更短，请用 `limit` 减少题量。
