@@ -124,7 +124,7 @@ pnpm release:patch    # 或 release:minor / release:major
 项目开源，不需要在 GitHub 里保存任何 Vercel 令牌。首次配置：
 
 1. 在 Vercel 导入这个 GitHub 仓库，框架会自动识别为 Next.js，不需要任何环境变量。
-2. 在项目 Settings → Git → Production Branch 中把生产分支设为 `release`。
+2. 在项目 Settings → Environments 中点开 Production，在 Branch Tracking 里把分支改为 `release` 并保存。仓库里没有 `main` 时，Vercel 默认把 `dev` 当作生产分支，不改的话每次推送到 `dev` 都会更新生产环境。
 3. 执行一次 `pnpm release:patch`，生成 `release` 分支并完成第一次生产部署。
 
 之后 PR 和 `dev` 的推送都会得到预览地址，生产环境只跟随版本发布更新。

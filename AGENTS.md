@@ -262,7 +262,7 @@ ALLOW_PRIVATE_BASE_URL=true pnpm dev
 - **CI**（`.github/workflows/ci.yml`）：推送到 `dev` 和向 `dev` 发起 PR 时运行：提交信息校验（仅 PR）、ESLint、格式检查、类型检查、生产构建、冒烟测试。
 - **预览部署**：由 Vercel 的 GitHub 集成自动完成，每个 PR 和 `dev` 的推送都有预览地址。
 - **发版**：在 `dev` 上执行 `pnpm release:patch`（或 `minor` / `major`）。脚本校验工作区干净且与 `origin/dev` 同步，跑 lint 和类型检查，升 `package.json` 版本，提交 `chore(release): vX.Y.Z`，打标签并推送。
-- **生产部署**（`.github/workflows/release.yml`）：推送 `vX.Y.Z` 标签后，先跑完整 CI，再校验标签与 `package.json` 一致、标签在 `dev` 上，然后创建 GitHub Release（自动生成说明），最后把 `release` 分支快进到该版本。Vercel 的生产分支设为 `release`，因此**只有发版才会更新生产环境**。
+- **生产部署**（`.github/workflows/release.yml`）：推送 `vX.Y.Z` 标签后，先跑完整 CI，再校验标签与 `package.json` 一致、标签在 `dev` 上，然后创建 GitHub Release（自动生成说明），最后把 `release` 分支快进到该版本。Vercel 的生产分支设为 `release`（Project Settings → Environments → Production → Branch Tracking），因此**只有发版才会更新生产环境**。
 - 不需要在 GitHub 里配置任何 Vercel 令牌。
 
 ## 已知问题
