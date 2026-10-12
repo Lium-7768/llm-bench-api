@@ -61,7 +61,8 @@ export function judge(question: Question, output: string): JudgeOutput {
       const invalid: string[] = [];
       for (const p of patterns) {
         try {
-          if (new RegExp(p, "im").test(text)) {
+          // 不用 m 标志：^ 和 $ 要锚定整个回答，而不是其中某一行
+          if (new RegExp(p, "i").test(text)) {
             return { passed: true, score: question.weight };
           }
         } catch (e) {
@@ -80,6 +81,24 @@ export function judge(question: Question, output: string): JudgeOutput {
         passed: false,
         score: 0,
         reason: `未匹配任一模式，实际「${truncate(text)}」`,
+      };
+    }
+
+    case "json": {
+      // 题目要求只输出 JSON，所以用原始回答判分，带了代码块标记或其他文字都不算遵循指令
+      const raw = (output ?? "").trim();
+      if (raw.startsWith("```")) return { passed: false, score: 0, reason: "带了代码块标记" };
+      let actual: unknown;
+      try {
+        actual = JSON.parse(raw);
+      } catch {
+        return { passed: false, score: 0, reason: `不是合法 JSON：「${truncate(raw)}」` };
+      }
+      const ok = canonical(actual) === canonical(JSON.parse(question.expected ?? "null"));
+      return {
+        passed: ok,
+        score: ok ? question.weight : 0,
+        reason: ok ? undefined : `期望 ${question.expected}，实际 ${truncate(raw)}`,
       };
     }
 
@@ -159,6 +178,18 @@ export function containsAsToken(haystack: string, needle: string): boolean {
     if (leftOk && rightOk) return true;
     from = idx + 1;
   }
+}
+
+/** 对象按键名排序后序列化，用于不区分字段顺序的 JSON 比较 */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.keys(value as object)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function truncate(s: string, n = 80): string {

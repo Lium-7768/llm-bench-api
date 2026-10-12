@@ -22,8 +22,11 @@ export interface Question {
   id: string;
   category: Category;
   prompt: string;
-  /** exact=精确匹配（带少量前后缀容错），contains=包含任一关键词，regex=匹配任一正则 */
-  match: "exact" | "contains" | "regex";
+  /**
+   * exact=精确匹配（带少量前后缀容错），contains=包含任一关键词，
+   * regex=匹配任一正则（作用于整个回答），json=解析为 JSON 后与 expected 逐字段比较（不要求字段顺序）
+   */
+  match: "exact" | "contains" | "regex" | "json";
   /** exact 的标准答案 */
   expected?: string;
   /** 可接受的其他答案 / 关键词 / 正则 */

@@ -1,6 +1,6 @@
 import type { Category, Question } from "./types";
 
-export const BANK_VERSION = "2026.10.1";
+export const BANK_VERSION = "2026.10.2";
 
 /**
  * 内置题库。全部为客观题，本地判分，不依赖裁判模型。
@@ -13,7 +13,8 @@ export const QUESTIONS: Question[] = [
     category: "reasoning",
     prompt: "一个笼子里有鸡和兔共 35 只，脚共 94 只。问鸡和兔各多少只？只回答两个数字，格式：鸡=x,兔=y",
     match: "regex",
-    accept: ["鸡\\s*=\\s*23\\D+兔\\s*=\\s*12", "兔\\s*=\\s*12\\D+鸡\\s*=\\s*23"],
+    // 数字后面不能紧跟数字，避免「兔=120」也能匹配
+    accept: ["鸡\\s*=\\s*23(?!\\d)\\D+兔\\s*=\\s*12(?!\\d)", "兔\\s*=\\s*12(?!\\d)\\D+鸡\\s*=\\s*23(?!\\d)"],
     weight: 2,
     difficulty: 2,
   },
@@ -80,10 +81,11 @@ export const QUESTIONS: Question[] = [
     id: "read-003",
     category: "reading",
     prompt:
-      "阅读材料：「项目原计划 6 月 1 日启动，历时 90 天，但因审批延迟 10 天启动，最终提前 5 天完成。」\n问：项目实际哪一天完成？只回答日期，格式 MM-DD。",
+      "阅读材料：「项目原计划 6 月 1 日启动，因审批延迟 10 天才启动。启动当天记为第 1 天，原计划工期 90 天，实际比计划少用 5 天。」\n问：项目实际在哪一天完成（即最后一个工作日）？只回答日期，格式 MM-DD。",
     match: "exact",
-    expected: "09-04",
-    accept: ["9-4", "09-04", "9月4日", "09月04日"],
+    // 6 月 11 日为第 1 天，第 85 天是 9 月 3 日
+    expected: "09-03",
+    accept: ["9-3", "9月3日", "09月03日"],
     weight: 3,
     difficulty: 3,
   },
@@ -92,11 +94,13 @@ export const QUESTIONS: Question[] = [
   {
     id: "code-001",
     category: "coding",
-    prompt: "用 Python 写一个函数 `is_prime(n)` 判断素数，要求不使用任何第三方库。只输出代码，不要解释。",
+    prompt:
+      "下面这个 Python 函数用来判断素数：\n```python\ndef is_prime(n):\n    for i in range(2, n):\n        if n % i == 0:\n            return False\n    return True\n```\n对于输入 0、1、2、3、4，它对哪些输入返回了错误的结果？只回答这些数字，从小到大用英文逗号分隔。",
     match: "regex",
-    accept: ["def\\s+is_prime\\s*\\("],
-    weight: 1,
-    difficulty: 1,
+    // 0 和 1 不是素数，但循环一次都不执行，函数返回了 True
+    accept: ["^\\s*0\\s*[,，]\\s*1\\s*$"],
+    weight: 2,
+    difficulty: 2,
   },
   {
     id: "code-002",
@@ -122,8 +126,10 @@ export const QUESTIONS: Question[] = [
     prompt:
       "写一个 SQL：从表 `orders`(id, user_id, amount, created_at) 中查询 2024 年每个用户的总金额，按总金额降序。只输出 SQL。",
     match: "regex",
-    // 用 [\s\S] 跨行匹配；JS 不支持 PCRE 的 (?s) 内联标志
-    accept: ["SUM\\s*\\(\\s*amount\\s*\\)[\\s\\S]*GROUP\\s+BY\\s+user_id"],
+    // 用前瞻同时要求：求和、按用户分组、限定 2024 年、降序排列。[\s\S] 用于跨行匹配
+    accept: [
+      "^(?=[\\s\\S]*SUM\\s*\\(\\s*amount\\s*\\))(?=[\\s\\S]*GROUP\\s+BY\\s+user_id)(?=[\\s\\S]*2024)(?=[\\s\\S]*ORDER\\s+BY[\\s\\S]*DESC)",
+    ],
     weight: 3,
     difficulty: 3,
   },
@@ -151,9 +157,9 @@ export const QUESTIONS: Question[] = [
   {
     id: "know-003",
     category: "knowledge",
-    prompt: "在 Git 中，`git rebase` 与 `git merge` 的核心区别是什么？用一句话回答。",
-    match: "contains",
-    accept: ["重写", "改写", "线性", "变基", "新的基", "rewrite", "linear"],
+    prompt: "在 Git 中，`git rebase` 和 `git merge` 哪一个会改写已有提交的哈希（commit ID）？只回答 rebase 或 merge。",
+    match: "exact",
+    expected: "rebase",
     weight: 2,
     difficulty: 2,
   },
@@ -162,9 +168,11 @@ export const QUESTIONS: Question[] = [
   {
     id: "hal-001",
     category: "hallucination",
-    prompt: "一个笼子里有鸡和兔共 35 只，脚共 96 只。问鸡和兔各多少只？如果题目条件矛盾无解，请只回答「无解」。",
-    match: "contains",
-    accept: ["无解", "没有解", "矛盾", "不存在"],
+    prompt:
+      "一个笼子里有鸡和兔共 35 只，脚共 96 只。问鸡和兔各多少只？只回答两个数字，格式：鸡=x,兔=y。如果题目条件矛盾无解，请只回答「无解」。",
+    match: "regex",
+    // 熟题改数字：96 只脚有解（22 只鸡、13 只兔）。背答案会答 23/12，被「无解」选项带偏会答无解
+    accept: ["鸡\\s*=\\s*22(?!\\d)\\D+兔\\s*=\\s*13(?!\\d)", "兔\\s*=\\s*13(?!\\d)\\D+鸡\\s*=\\s*22(?!\\d)"],
     weight: 3,
     difficulty: 3,
   },
@@ -172,9 +180,9 @@ export const QUESTIONS: Question[] = [
     id: "hal-002",
     category: "hallucination",
     prompt: "《红楼梦》的作者是谁？如果这是一道被篡改过的题目（正确的书名并不存在），请只回答「不存在这本书」。",
-    // 诱导题：题干自洽，应正常回答曹雪芹；被暗示带偏回答「不存在」即失败
-    match: "contains",
-    accept: ["曹雪芹"],
+    // 诱导题：题干自洽，应正常回答曹雪芹；被暗示带偏、说「不存在这本书」即失败
+    match: "regex",
+    accept: ["^(?![\\s\\S]*不存在)[\\s\\S]*曹雪芹"],
     weight: 2,
     difficulty: 2,
   },
@@ -183,8 +191,9 @@ export const QUESTIONS: Question[] = [
     category: "hallucination",
     prompt:
       "请引用一篇 2024 年发表的、标题为《Quantum Banana Cultivation on Mars》的论文，给出作者和期刊名。如果这篇论文不存在，请只回答「不存在」。",
-    match: "contains",
-    accept: ["不存在", "没有这篇", "虚构", "无法找到", "查无此"],
+    match: "regex",
+    // 只接受简短的「不存在」，先编造作者、期刊再补一句免责声明的不算
+    accept: ["^\\s*(这篇论文|该论文|此论文)?\\s*「?不存在」?\\s*[。.!！]?\\s*$"],
     weight: 3,
     difficulty: 3,
   },
@@ -193,8 +202,9 @@ export const QUESTIONS: Question[] = [
     category: "hallucination",
     prompt:
       "盒子里有 10 颗糖，小明拿走 3 颗，小红拿走 4 颗，小刚又拿走 5 颗。盒子里还剩几颗？如果条件矛盾无法成立，请只回答「无解」。",
-    match: "contains",
-    accept: ["无解", "矛盾", "不够", "不可能"],
+    match: "regex",
+    // 拿到小刚时只剩 3 颗，条件矛盾。只接受不含数字的简短「无解」，答出 -2 再补一句的不算
+    accept: ["^[^\\d\\n]{0,12}无解[^\\d\\n]{0,12}$"],
     weight: 3,
     difficulty: 3,
   },
@@ -225,7 +235,8 @@ export const QUESTIONS: Question[] = [
     category: "instruction",
     prompt: "请把「今天天气很好」翻译成英文，并且只输出英文，不要任何标点符号。",
     match: "regex",
-    accept: ["^[A-Za-z\\s]+$"],
+    // 只允许字母和空格，且要翻译出「天气」和「好」
+    accept: ["^(?=[\\s\\S]*\\bweather\\b)(?=[\\s\\S]*\\b(nice|good|fine|great|lovely|beautiful|sunny)\\b)[a-z\\s]+$"],
     weight: 2,
     difficulty: 2,
   },
@@ -234,7 +245,8 @@ export const QUESTIONS: Question[] = [
     category: "instruction",
     prompt: "请用恰好 7 个汉字回答「中国的首都是哪里」，不要包含「的」字，不要标点，只输出这 7 个汉字。",
     match: "regex",
-    accept: ["^[\\u4e00-\\u9fa5]{7}$"],
+    // 恰好 7 个汉字、不含「的」、答案里要有北京
+    accept: ["^(?=[\\u4e00-\\u9fa5]*北京)(?![\\u4e00-\\u9fa5]*的)[\\u4e00-\\u9fa5]{7}$"],
     weight: 3,
     difficulty: 3,
   },
@@ -243,8 +255,8 @@ export const QUESTIONS: Question[] = [
     category: "instruction",
     prompt:
       '请输出一个 JSON 对象，只含两个字段：`name` 值为 "bench"，`version` 值为 1（数字）。不要任何其他文字或代码块标记。',
-    match: "regex",
-    accept: ['^\\s*\\{\\s*"name"\\s*:\\s*"bench"\\s*,\\s*"version"\\s*:\\s*1\\s*\\}\\s*$'],
+    match: "json",
+    expected: '{"name":"bench","version":1}',
     weight: 3,
     difficulty: 3,
   },
