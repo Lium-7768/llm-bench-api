@@ -108,12 +108,30 @@ curl -X POST http://localhost:3000/api/v1/detect \
 
 ## 部署到 Vercel
 
+**方式一：CLI 部署（最快）**
+
 ```bash
-pnpm dlx vercel        # 首次登录并关联项目
-pnpm dlx vercel --prod # 生产部署
+cd /Users/aaxis/code/llm-bench-api
+pnpm dlx vercel login   # 首次需要登录（会打开浏览器授权）
+pnpm dlx vercel         # 预览部署
+pnpm dlx vercel --prod  # 生产部署
 ```
 
-或推到 GitHub 后在 Vercel 导入仓库，框架会自动识别为 Next.js，无需环境变量。
+**方式二：GitHub 自动部署**
+
+```bash
+gh auth login           # 登录 GitHub
+gh repo create llm-bench-api --public --source=. --push
+```
+
+然后在 <https://vercel.com/new> 导入该仓库即可。框架会被自动识别为 Next.js，无需任何环境变量。
+
+部署后可用以下命令验证线上接口：
+
+```bash
+curl https://<你的域名>/api/v1/health
+curl https://<你的域名>/api/v1
+```
 
 `vercel.json` 已配置：
 
@@ -124,13 +142,20 @@ pnpm dlx vercel --prod # 生产部署
 > 注意：Hobby 套餐函数最长执行时间为 60 秒。若题目较多或上游较慢，请减少 `limit`，
 > 或升级到 Pro 套餐以使用 300 秒上限。
 
+## 环境变量
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `ALLOW_PRIVATE_BASE_URL` | `false` | 允许 `baseUrl` 指向 localhost/内网，用于评测 Ollama、LM Studio 等本地模型。**公网部署切勿开启**，否则接口会变成内网探测工具。 |
+
 ## 已知限制
 
 - **存储是内存的**：Vercel 是无状态 Serverless，冷启动后历史记录会清空。长期保存请把
   `lib/store.ts` 实现替换为 Vercel KV / Upstash Redis / Postgres，函数签名不用改。
 - **同步执行**：评测在单个 HTTP 请求内跑完，题量大时可能超出函数时限。需要跑大规模评测
   可以改成「入队 + 轮询」，`lib/runner.ts` 的 `onProgress` 已经预留了回调。
-- **禁止内网地址**：出于 SSRF 防护，`baseUrl` 不能指向 localhost 和内网网段。
+- **禁止内网地址**：出于 SSRF 防护，`baseUrl` 不能指向 localhost 和内网网段（除非显式开启
+  上面的环境变量）。
 
 ## 目录结构
 
