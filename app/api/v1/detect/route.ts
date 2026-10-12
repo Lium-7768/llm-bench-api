@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       baseUrl,
       apiKey,
       model,
-      timeoutMs: body.timeoutMs ?? 45_000,
+      timeoutMs: body.timeoutMs ?? 20_000,
     });
     return ok({
       ...result,
@@ -52,6 +52,8 @@ export async function POST(req: Request) {
         clean: "全部检查通过，接口行为正常。",
         suspicious: "存在部分异常信号，建议进一步人工核对。",
         tampered: "检测到多项异常，该接口很可能被中转站改动过。",
+        inconclusive:
+          "探测未能完成（上游过慢或不可达），无法给出结论。请稍后重试，或检查该接口是否可用。",
       }[result.verdict],
     });
   } catch (e) {

@@ -97,7 +97,7 @@ export interface LeaderboardEntry {
 
 export interface DetectResult {
   model: string;
-  verdict: "clean" | "suspicious" | "tampered";
+  verdict: "clean" | "suspicious" | "tampered" | "inconclusive";
   identityMatch: boolean;
   systemPromptHonored: boolean;
   streamingReal: boolean;

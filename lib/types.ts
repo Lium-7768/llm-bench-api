@@ -115,5 +115,11 @@ export interface FingerprintResult {
   /** 返回 token 用量是否正常 */
   usagePresent: boolean;
   signals: Array<{ name: string; ok: boolean; detail: string }>;
-  verdict: "clean" | "suspicious" | "tampered";
+  /**
+   * clean       全部检查通过
+   * suspicious  部分异常，建议人工复核
+   * tampered    多项异常，很可能被改动过
+   * inconclusive 探测本身没能完成（超时/上游不可达），无法下结论
+   */
+  verdict: "clean" | "suspicious" | "tampered" | "inconclusive";
 }

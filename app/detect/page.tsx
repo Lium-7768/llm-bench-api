@@ -7,6 +7,7 @@ const VERDICT_LABEL: Record<DetectResult["verdict"], { text: string; cls: string
   clean: { text: "接口正常", cls: "ok" },
   suspicious: { text: "存在可疑信号", cls: "warn" },
   tampered: { text: "疑似被改动", cls: "bad" },
+  inconclusive: { text: "无法判定", cls: "muted" },
 };
 
 export default function DetectPage() {
