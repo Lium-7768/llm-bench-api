@@ -1,4 +1,5 @@
 import { chatLong, hostOf } from "./llm";
+import { analyzeSvg, extractSvg } from "./svg";
 import type { PelicanResult, Target } from "./types";
 
 export const PELICAN_PROMPT = "Generate an SVG of a pelican riding a bicycle. Output only the SVG code, nothing else.";
@@ -19,6 +20,7 @@ export async function runPelican(
     timeoutMs: opts.timeoutMs ?? 120_000,
   });
 
+  const svg = extractSvg(res.text);
   return {
     id: crypto.randomUUID(),
     model: target.model,
@@ -27,18 +29,9 @@ export async function runPelican(
     startedAt: startedAt.toISOString(),
     durationMs: Date.now() - startedAt.getTime(),
     prompt,
-    svg: extractSvg(res.text),
+    svg,
     raw: res.text,
+    analysis: analyzeSvg(res.text, svg),
     usage: res.usage,
   };
-}
-
-/** 从回答里取出第一个完整的 <svg>…</svg> */
-export function extractSvg(text: string): string | null {
-  const match = text.match(/<svg[\s\S]*?<\/svg>/i);
-  if (!match) return null;
-  let svg = match[0];
-  // 没写 xmlns 时浏览器不会把它当作图片渲染
-  if (!/xmlns=/.test(svg)) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
-  return svg;
 }

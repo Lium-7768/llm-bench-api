@@ -124,7 +124,25 @@ export interface PelicanResult {
   svg: string | null;
   /** 模型原始回答 */
   raw: string;
+  /** 输出格式与动画分析；v0.4.0 之前的报告没有 */
+  analysis?: SvgAnalysis;
   usage?: Usage;
+}
+
+/**
+ * 回答是否遵守「只输出 SVG」：
+ * pure 只有 SVG（允许 XML 声明）；fenced 外面包了代码块；extra 前后有其他文字或不止一段 SVG；
+ * truncated 有 <svg> 开头没有结尾；none 没有 SVG
+ */
+export type SvgFormat = "pure" | "fenced" | "extra" | "truncated" | "none";
+
+export interface SvgAnalysis {
+  format: SvgFormat;
+  /** 是否带动画（SMIL 或 CSS 动画）。网页以图片方式展示，这两种动画都会播放 */
+  animated: boolean;
+  animation: Array<"smil" | "css">;
+  /** 是否含脚本或事件属性。以图片方式展示时脚本不会执行，靠脚本驱动的动画也不会动 */
+  script: boolean;
 }
 
 export interface Usage {

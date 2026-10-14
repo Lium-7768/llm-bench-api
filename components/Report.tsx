@@ -1,10 +1,11 @@
 "use client";
 
-import { Code2, Maximize2 } from "lucide-react";
+import { Code2, Film, Image as ImageIcon, Maximize2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { CATEGORY_LABELS } from "@/lib/bank";
 import type { AnswerResult, BenchResult, CheckStatus, DetectResult, PelicanResult, Report, Stage } from "@/lib/types";
+import { ANIMATION_LABEL, FORMAT_HINT, FORMAT_LABEL, analysisOf } from "@/lib/svg";
 import { STATUS_LABEL, VERDICT_LABEL, formatMs, formatTime, protocolLabel } from "@/lib/web/format";
 import { Bar, ScoreDial, useCountUp } from "./Score";
 import { STAGE_INFO, StageIcon } from "./StageIcon";
@@ -40,6 +41,45 @@ export function PelicanImage({ svg, className }: { svg: string | null; className
       alt="模型绘制的鹈鹕骑自行车"
       src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`}
     />
+  );
+}
+
+const FORMAT_TONE = { pure: "pass", fenced: "warn", extra: "warn", truncated: "fail", none: "fail" } as const;
+
+/** 鹈鹕图的两项标注：动态 / 静态、输出格式。旧报告没有原始回答，只标动态 / 静态 */
+export function SvgBadges({ result }: { result: Pick<PelicanResult, "svg" | "analysis"> }) {
+  const a = analysisOf(result);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {result.svg &&
+        (a.animated ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-violet/12 px-2.5 py-0.5 text-xs font-semibold text-violet"
+            title="SVG 里带动画，下面的图会动"
+          >
+            <Film size={12} strokeWidth={2.5} />
+            动态 · {a.animation.map((k) => ANIMATION_LABEL[k]).join(" + ")}
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-tint px-2.5 py-0.5 text-xs font-semibold text-readout"
+            title={a.script ? "没有 SMIL / CSS 动画；含脚本，但出于安全不执行" : "SVG 里没有动画"}
+          >
+            <ImageIcon size={12} strokeWidth={2.5} />
+            静态
+          </span>
+        ))}
+      {a.known && (
+        <span title={FORMAT_HINT[a.format]}>
+          <Pill tone={FORMAT_TONE[a.format]}>{FORMAT_LABEL[a.format]}</Pill>
+        </span>
+      )}
+      {a.script && (
+        <span title="SVG 里有脚本或事件属性。以图片方式展示，脚本不会执行，靠脚本驱动的动画也不会动">
+          <Pill tone="warn">含脚本 · 未执行</Pill>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -114,6 +154,7 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
                 {(stage === "basic" || stage === "candy" || stage === "inference") && report[stage] && (
                   <BenchTile result={report[stage]!} detailed={stage === "basic"} />
                 )}
+                {stage === "pelican" && pelican && <SvgBadges result={pelican} />}
                 {stage === "pelican" && pelican && (
                   <div className="mx-auto grid aspect-[4/3] w-full max-w-sm place-items-center overflow-hidden rounded-2xl border border-line">
                     <PelicanImage svg={pelican.svg} />
@@ -381,8 +422,21 @@ export function DetectDetail({ result }: { result: DetectResult }) {
 
 export function PelicanDetail({ result }: { result: PelicanResult }) {
   const [code, setCode] = useState(false);
+  const a = analysisOf(result);
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <SvgBadges result={result} />
+        <p className="text-xs leading-relaxed text-readout">
+          {result.svg
+            ? a.animated
+              ? `用了 ${a.animation.map((k) => ANIMATION_LABEL[k]).join(" 和 ")} 动画。`
+              : "没有动画。"
+            : ""}
+          {a.known ? FORMAT_HINT[a.format] + "。" : ""}
+          图片以安全方式展示：动画会播放，脚本不会执行。
+        </p>
+      </div>
       <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line">
         <PelicanImage svg={result.svg} />
       </div>

@@ -4,7 +4,7 @@ import { ArrowLeft, Download, GitCompareArrows, Play, RotateCcw, Settings2, Squa
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { CheckEvent, StagePlan } from "@/lib/check";
-import type { Report, Stage } from "@/lib/types";
+import type { PelicanResult, Report, Stage } from "@/lib/types";
 import { ConfigPanel } from "@/components/ConfigPanel";
 import { missingConfig, useConfig } from "@/lib/web/config";
 import { Pipeline, type PipelineStage, type StageStatus } from "@/components/Pipeline";
@@ -13,8 +13,15 @@ import { FlowBar, StageLive, type LiveData } from "@/components/StageLive";
 import { STAGE_INFO } from "@/components/StageIcon";
 import { IconButton, IconLink, Modal, Panel } from "@/components/ui";
 import { PRESETS } from "@/lib/presets";
+import { analysisOf } from "@/lib/svg";
 import { streamApi } from "@/lib/web/api";
 import { addHistory } from "@/lib/web/storage";
+
+/** 鹈鹕完成后在管道节点上直接标出动态 / 静态 */
+function pelicanCaption(p?: PelicanResult): string {
+  if (!p?.svg) return "没出图";
+  return analysisOf(p).animated ? "动态图" : "静态图";
+}
 
 const STAGES: Stage[] = ["detect", "basic", "candy", "inference", "pelican"];
 
@@ -152,7 +159,7 @@ export default function Home() {
           : `${done}/${plan.total}`
         : status === "done"
           ? id === "pelican"
-            ? "已出图"
+            ? pelicanCaption(run.live.pelican)
             : "完成"
           : status === "error"
             ? "未完成"

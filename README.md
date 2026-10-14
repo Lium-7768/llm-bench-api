@@ -27,13 +27,13 @@ pnpm dev          # http://localhost:3000
 
 所有 POST 接口用同样的字段指定被测接口：
 
-| 字段                          | 说明                                                              |
-| ----------------------------- | ----------------------------------------------------------------- |
-| `Authorization: Bearer <key>` | 被测接口的 API Key，也可用 `X-Api-Key` 头或 body 里的 `apiKey`    |
-| `protocol`                    | `openai` / `anthropic` / `gemini`，不填时按地址推断               |
-| `baseUrl`                     | 被测接口地址；只给 `protocol` 时使用官方地址                      |
-| `model`                       | 模型 ID                                                           |
-| `stages`                      | `/check` 专用：`detect` / `basic` / `candy` / `pelican`，默认全部 |
+| 字段                          | 说明                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `Authorization: Bearer <key>` | 被测接口的 API Key，也可用 `X-Api-Key` 头或 body 里的 `apiKey`                  |
+| `protocol`                    | `openai` / `anthropic` / `gemini`，不填时按地址推断                             |
+| `baseUrl`                     | 被测接口地址；只给 `protocol` 时使用官方地址                                    |
+| `model`                       | 模型 ID                                                                         |
+| `stages`                      | `/check` 专用：`detect` / `basic` / `candy` / `inference` / `pelican`，默认全部 |
 
 JSON 响应统一为 `{ ok, data, error }`。
 
@@ -52,7 +52,7 @@ curl -X POST http://localhost:3000/api/v1/check \
 | `basic` 基础测试     | 推理、阅读、代码、知识、指令遵循                                           | 40%        |
 | `candy` 糖果测试     | 改过条件的熟题、不存在的文献，测幻觉                                       | 30%        |
 | `inference` 综合推理 | 知识 + 多步反证 + 抗诱导的复合题（红绿色盲题）                             | 不计分     |
-| `pelican` 鹈鹕测试   | 用 SVG 画一只骑自行车的鹈鹕                                                | 不计分     |
+| `pelican` 鹈鹕测试   | 用 SVG 画一只骑自行车的鹈鹕，标出动态 / 静态和是否只输出了 SVG             | 不计分     |
 
 综合分只计算有结果的步骤。综合推理单独展示，不参与综合分。
 

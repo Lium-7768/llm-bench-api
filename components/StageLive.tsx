@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { StagePlan } from "@/lib/check";
 import type { AnswerResult, CheckResult, PelicanResult } from "@/lib/types";
 import { STATUS_LABEL, formatMs } from "@/lib/web/format";
-import { PelicanImage } from "./Report";
+import { PelicanImage, SvgBadges } from "./Report";
 import { STAGE_INFO } from "./StageIcon";
 import { Pill, cx } from "./ui";
 
@@ -271,6 +271,9 @@ function PelicanLive({ result }: { result?: PelicanResult }) {
             transition={{ duration: 0.9 }}
           >
             <PelicanImage svg={result.svg} />
+            <span className="absolute top-3 left-3">
+              <SvgBadges result={result} />
+            </span>
           </motion.div>
         ) : (
           <motion.div key="scan" className="absolute inset-0" exit={{ opacity: 0 }}>

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { CATEGORY_LABELS, QUESTIONS } from "@/lib/bank";
 import { DETECT_CHECKS } from "@/lib/detect";
 import type { BenchResult, Report } from "@/lib/types";
-import { PelicanImage } from "@/components/Report";
+import { PelicanImage, SvgBadges } from "@/components/Report";
 import { IconButton, Modal, Panel, Pill, cx } from "@/components/ui";
 import { STATUS_LABEL, formatMs, formatTime, hasError } from "@/lib/web/format";
 import { useHistory } from "@/lib/web/storage";
@@ -248,6 +248,11 @@ function CompareTables({ runs }: { runs: Report[] }) {
                 )}
               </div>
               <p className="mt-2.5 truncate px-1 text-sm">{r.model}</p>
+              {r.pelican && (
+                <div className="mt-1.5 px-1">
+                  <SvgBadges result={r.pelican} />
+                </div>
+              )}
             </Panel>
           ))}
         </div>

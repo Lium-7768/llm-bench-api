@@ -89,7 +89,11 @@ const RESPONSE = `{
     },
     "candy": { "score": 83.3, … },        // 结构同 basic
     "inference": { "score": 100, … },    // 结构同 basic，单独展示，不计入综合分
-    "pelican": { "svg": "<svg …>…</svg>", "raw": "…" },
+    "pelican": {
+      "svg": "<svg …>…</svg>", "raw": "…",
+      // 不计分：format 是否只输出了 SVG（pure / fenced / extra / truncated / none），animated 是否带 SMIL 或 CSS 动画
+      "analysis": { "format": "pure", "animated": true, "animation": ["smil"], "script": false }
+    },
     "errors": {}                   // 某一步失败或被跳过的原因
   },
   "error": null

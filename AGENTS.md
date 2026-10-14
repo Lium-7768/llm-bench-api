@@ -70,7 +70,8 @@ lib/                    服务端与共享逻辑
   bench.ts              基础 / 糖果 / 综合推理的作答与并发
   bank.ts               题库
   scoring.ts            判分与汇总
-  pelican.ts            鹈鹕绘图与 SVG 提取
+  pelican.ts            鹈鹕绘图
+  svg.ts                SVG 提取与分析（输出格式、动态 / 静态），前后端共用
   presets.ts            服务商预设
   http.ts               统一响应信封、CORS、读取被测接口、SSE、SSRF 防护
   channel.ts            异步队列，把并发结果转成按顺序消费的事件
@@ -195,9 +196,19 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 
 当前题库版本 `BANK_VERSION = "2026.10.4"`。
 
-### 鹈鹕测试（lib/pelican.ts）
+### 鹈鹕测试（lib/pelican.ts、lib/svg.ts）
 
-提示词：`Generate an SVG of a pelican riding a bicycle. Output only the SVG code, nothing else.` 从回答里提取第一个 `<svg>…</svg>`，没有 `xmlns` 时补上。前端用 `<img src="data:image/svg+xml,…">` 渲染，图片上下文里的 SVG 不会执行脚本，即使模型输出恶意内容也安全。
+提示词：`Generate an SVG of a pelican riding a bicycle. Output only the SVG code, nothing else.` 从回答里提取第一个 `<svg>…</svg>`，没有 `xmlns` 时补上。
+
+结果里的 `analysis` 是对回答的本地分析，不计分：
+
+| 字段       | 含义                                                                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`   | `pure` 只有 SVG（允许 XML 声明）；`fenced` 包在代码块里；`extra` 前后有其他文字或不止一段 SVG；`truncated` 没有 `</svg>`；`none` 没有 SVG          |
+| `animated` | 是否带动画，`animation` 列出用了哪种：`smil`（`<animate>`、`<animateTransform>`、`<animateMotion>`、`<set>`）或 `css`（`@keyframes`、`animation`） |
+| `script`   | 是否含 `<script>` 或 `onxxx=` 事件属性                                                                                                             |
+
+**展示必须用图片**：前端用 `<img src="data:image/svg+xml,…">` 渲染，不要改成内联 SVG（`dangerouslySetInnerHTML`）。模型输出不可信，内联会执行脚本（能读到 localStorage 里的密钥）、`<style>` 会污染整页、外链资源会被加载。图片上下文里 SMIL 和 CSS 动画照常播放，脚本不执行，所以「动态」只认 SMIL 和 CSS，靠脚本驱动的动画标为静态并提示「含脚本 · 未执行」。v0.4.0 之前的历史报告没有 `analysis`，前端只按 SVG 补算动态 / 静态，不显示输出格式。
 
 ## 支持的模型
 

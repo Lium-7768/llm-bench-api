@@ -93,6 +93,7 @@ export function GET() {
           description:
             "按顺序执行五步：detect 指纹检测 → basic 基础测试 → candy 糖果测试 → inference 综合推理 → pelican 鹈鹕测试，返回 Report。" +
             "综合分 = 指纹 30% + 基础 40% + 糖果 30%（只算有结果的部分），综合推理与鹈鹕不计入综合分。" +
+            "pelican.analysis 标出回答是否只输出了 SVG（format：pure / fenced / extra / truncated / none）和是否为动态图（animated，animation 为 smil / css），不计分。" +
             "stream=true 时返回 text/event-stream：start → 每一步依次 stage.start、若干 answer 或 check、stage.done（或 stage.error）→ result。",
           requestBody: {
             content: json({

@@ -14,6 +14,7 @@
  * - 自报身份是 Claude，用其他模型名测试时「身份自报」会显示存疑
  * - Anthropic 协议不支持工具调用，会显示「不支持」；响应声明的模型固定是 gpt-4o，用 claude 模型名测试时会判为换模型
  * - Gemini 协议的流式一次性返回，会判为假流式
+ * - 鹈鹕图：OpenAI / Gemini 协议返回纯 SVG 静态图；Anthropic 协议返回包在代码块里的动态图（SMIL 转动车轮）
  */
 import http from "node:http";
 
@@ -59,6 +60,16 @@ const ANSWERS = [
     `<svg viewBox="0 0 200 150"><circle cx="60" cy="115" r="25" fill="none" stroke="#333" stroke-width="4"/><circle cx="145" cy="115" r="25" fill="none" stroke="#333" stroke-width="4"/><path d="M60 115 L100 80 L145 115 M100 80 L95 60" stroke="#333" stroke-width="4" fill="none"/><ellipse cx="100" cy="55" rx="28" ry="18" fill="#f5f5f5" stroke="#333" stroke-width="3"/><circle cx="125" cy="38" r="10" fill="#f5f5f5" stroke="#333" stroke-width="3"/><path d="M133 40 L170 48 L133 46 Z" fill="#f4a300"/></svg>`,
   ],
 ];
+
+/** 给车轮加上 SMIL 旋转，并包一层代码块 */
+const animatedPelican = (svg) =>
+  "```svg\n" +
+  svg.replace(
+    /<circle cx="(\d+)" cy="(\d+)" r="25"([^>]*)\/>/g,
+    (_, cx, cy, rest) =>
+      `<g><circle cx="${cx}" cy="${cy}" r="25"${rest}/><path d="M${cx} ${Number(cy) - 25} V${Number(cy) + 25}" stroke="#333" stroke-width="2"/><animateTransform attributeName="transform" type="rotate" from="0 ${cx} ${cy}" to="360 ${cx} ${cy}" dur="1s" repeatCount="indefinite"/></g>`,
+  ) +
+  "\n```";
 
 const reply = (text, system) =>
   system?.includes("ZEBRA") ? "ZEBRA-7749" : (ANSWERS.find(([re]) => re.test(text))?.[1] ?? "好");
@@ -125,7 +136,8 @@ http
     if (url.endsWith("/v1/messages")) {
       if (req.headers["x-api-key"] !== "k") return send(res, 401, { error: { message: "invalid x-api-key" } });
       if (body.tools) return send(res, 400, { error: { message: "tools: not supported by this relay" } });
-      const text = reply(body.messages.at(-1).content, body.system);
+      const last = body.messages.at(-1).content;
+      const text = /pelican/i.test(last) ? animatedPelican(reply(last)) : reply(last, body.system);
       if (body.stream) {
         return stream(res, [
           `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { usage: { input_tokens: 7 } } })}\n\n`,
