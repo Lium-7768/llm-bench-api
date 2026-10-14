@@ -265,7 +265,7 @@ function PelicanLive({ result }: { result?: PelicanResult }) {
         {result ? (
           <motion.div
             key="img"
-            className="size-full"
+            className="relative size-full"
             initial={{ opacity: 0, scale: 1.08, filter: "blur(16px)" }}
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             transition={{ duration: 0.9 }}

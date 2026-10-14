@@ -5,6 +5,7 @@ import {
   selectQuestions,
 } from "./bank";
 import { runBench } from "./bench";
+import { compositeScore } from "./scoring";
 import { channel } from "./channel";
 import { DETECT_CHECKS, runDetect } from "./detect";
 import { hostOf } from "./llm";
@@ -13,9 +14,6 @@ import type { AnswerResult, BenchResult, CheckResult, Report, Stage, Target } fr
 
 /** 执行顺序 */
 export const ALL_STAGES: Stage[] = ["detect", "basic", "candy", "inference", "pelican"];
-
-/** 综合分权重；鹈鹕没有标准答案、综合推理单独展示，都不计分 */
-const WEIGHTS: Partial<Record<Stage, number>> = { detect: 0.3, basic: 0.4, candy: 0.3 };
 
 /** 整体时限：留出余量，避免函数被平台强制终止（Vercel 上限 300 秒） */
 const BUDGET_MS = 285_000;
@@ -114,8 +112,9 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
           categories,
           // 只有基础测试受 limit 限制；糖果和综合推理总是全做
           limit: stage === "basic" ? opts.limit : undefined,
-          // 综合推理要写一段推理，思考型模型实测要两分多钟：放宽单题时限并走流式
-          ...(stage === "inference" && { stream: true, timeoutMs: Math.max(opts.timeoutMs ?? 0, 150_000) }),
+          // 综合推理要写一段推理，思考型模型实测 140–160 秒以上：单题时限放到 270 秒并走流式。
+          // 实际还会被本次请求剩余的时间截断，所以单独请求这一步（网页的做法）才能用满
+          ...(stage === "inference" && { stream: true, timeoutMs: Math.max(opts.timeoutMs ?? 0, 270_000) }),
           budgetMs: remaining,
         })) {
           if (e.type === "answer") yield { type: "answer", stage, done: e.done, total: e.total, answer: e.answer };
@@ -144,13 +143,4 @@ export async function runCheckToEnd(opts: CheckOptions): Promise<Report> {
     if (e.type === "result") return e.result;
   }
   throw new Error("检测没有产出结果");
-}
-
-function compositeScore(r: Report): number | null {
-  const parts = (["detect", "basic", "candy"] as const)
-    .map((s) => [r[s]?.score, WEIGHTS[s]!] as const)
-    .filter((p): p is readonly [number, number] => typeof p[0] === "number");
-  if (!parts.length) return null;
-  const weight = parts.reduce((sum, [, w]) => sum + w, 0);
-  return Math.round((parts.reduce((sum, [v, w]) => sum + v * w, 0) / weight) * 10) / 10;
 }

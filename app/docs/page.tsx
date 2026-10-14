@@ -177,7 +177,9 @@ export default function DocsPage() {
           综合推理、pelican 鹈鹕测试，默认全部，按这个顺序执行）、
           <code>limit</code>（基础测试题量）、<code>seed</code>（默认 42，相同则题目和顺序相同）、
           <code>temperature</code>、<code>concurrency</code>（1-8，默认 3）、<code>timeoutMs</code>（单题超时）、
-          <code>stream</code>。
+          <code>stream</code>。 一次请求里的所有步骤共用约 285 秒；被测模型思考很慢时，建议像本站网页一样每次只传一个{" "}
+          <code>stages</code>
+          分步请求，seed 相同则题目不变。
         </p>
         <p>
           所有 JSON 响应都是 <code>{"{ ok, data, error }"}</code> 信封，失败时 <code>error.code</code>{" "}

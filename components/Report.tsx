@@ -33,11 +33,13 @@ const VERDICT_TONE: Record<DetectResult["verdict"], "pass" | "warn" | "fail" | "
  * 即使模型输出了恶意内容也是安全的。
  */
 export function PelicanImage({ svg, className }: { svg: string | null; className?: string }) {
+  // 绝对定位铺满父容器（父容器需 relative）：模型常在 <svg> 上写很大的 width / height，
+  // 普通流里图片会按这个尺寸把带 aspect-ratio 的容器撑高，底部被裁掉
   if (!svg) return <span className="text-xs text-faint">回答里没有找到 SVG</span>;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className={cx("size-full animate-reveal bg-white object-contain p-3", className)}
+      className={cx("absolute inset-0 size-full animate-reveal bg-white object-contain p-3", className)}
       alt="模型绘制的鹈鹕骑自行车"
       src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`}
     />
@@ -156,7 +158,7 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
                 )}
                 {stage === "pelican" && pelican && <SvgBadges result={pelican} />}
                 {stage === "pelican" && pelican && (
-                  <div className="mx-auto grid aspect-[4/3] w-full max-w-sm place-items-center overflow-hidden rounded-2xl border border-line">
+                  <div className="relative mx-auto grid aspect-[4/3] w-full max-w-sm place-items-center overflow-hidden rounded-2xl border border-line">
                     <PelicanImage svg={pelican.svg} />
                   </div>
                 )}
@@ -437,7 +439,7 @@ export function PelicanDetail({ result }: { result: PelicanResult }) {
           图片以安全方式展示：动画会播放，脚本不会执行。
         </p>
       </div>
-      <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line">
+      <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line">
         <PelicanImage svg={result.svg} />
       </div>
       <div className="flex items-center justify-between gap-3">

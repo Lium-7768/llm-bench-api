@@ -240,7 +240,7 @@ function CompareTables({ runs }: { runs: Report[] }) {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {runs.map((r) => (
             <Panel key={r.id} className="p-3">
-              <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line bg-paper">
+              <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line bg-paper">
                 {r.pelican ? (
                   <PelicanImage svg={r.pelican.svg} />
                 ) : (

@@ -1,4 +1,4 @@
-import type { AnswerResult, Category, CategoryScore, Question } from "./types";
+import type { AnswerResult, Category, CategoryScore, Question, Report, Stage } from "./types";
 import { ALL_CATEGORIES, CATEGORY_LABELS } from "./bank";
 
 /** 归一化模型输出：去代码块、去空白、去常见前缀 */
@@ -199,4 +199,17 @@ function truncate(s: string, n = 80): string {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** 综合分权重；鹈鹕没有标准答案、综合推理单独展示，都不计分 */
+export const SCORE_WEIGHTS: Partial<Record<Stage, number>> = { detect: 0.3, basic: 0.4, candy: 0.3 };
+
+/** 综合分：只按有结果的计分步骤加权；前端分步请求后合并报告时也用它 */
+export function compositeScore(r: Pick<Report, "detect" | "basic" | "candy">): number | null {
+  const parts = (["detect", "basic", "candy"] as const)
+    .map((s) => [r[s]?.score, SCORE_WEIGHTS[s]!] as const)
+    .filter((p): p is readonly [number, number] => typeof p[0] === "number");
+  if (!parts.length) return null;
+  const weight = parts.reduce((sum, [, w]) => sum + w, 0);
+  return Math.round((parts.reduce((sum, [v, w]) => sum + v * w, 0) / weight) * 10) / 10;
 }

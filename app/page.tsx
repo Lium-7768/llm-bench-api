@@ -13,9 +13,54 @@ import { FlowBar, StageLive, type LiveData } from "@/components/StageLive";
 import { STAGE_INFO } from "@/components/StageIcon";
 import { IconButton, IconLink, Modal, Panel } from "@/components/ui";
 import { PRESETS } from "@/lib/presets";
+import { compositeScore } from "@/lib/scoring";
 import { analysisOf } from "@/lib/svg";
 import { streamApi } from "@/lib/web/api";
 import { addHistory } from "@/lib/web/storage";
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "";
+  }
+}
+
+/** 某一步的请求整体失败时，用来占位的空报告 */
+function emptyReport(
+  config: { model: string; protocol: Report["protocol"]; baseUrl: string },
+  stages: Stage[],
+): Report {
+  return {
+    id: "",
+    model: config.model,
+    protocol: config.protocol,
+    host: originOf(config.baseUrl),
+    startedAt: new Date().toISOString(),
+    durationMs: 0,
+    stages,
+    score: null,
+    errors: {},
+  };
+}
+
+/** 把逐步请求得到的报告合成一份完整报告，综合分按合并后的结果重新计算 */
+function mergeReports(parts: Report[], stages: Stage[], started: number): Report {
+  const first = parts.find((p) => p.id) ?? parts[0];
+  const merged: Report = {
+    ...first,
+    id: crypto.randomUUID(),
+    startedAt: new Date(started).toISOString(),
+    durationMs: Date.now() - started,
+    stages,
+    errors: Object.assign({}, ...parts.map((p) => p.errors)),
+  };
+  for (const p of parts) {
+    for (const s of stages) if (p[s]) Object.assign(merged, { [s]: p[s] });
+  }
+  merged.score = compositeScore(merged);
+  return merged;
+}
 
 /** 鹈鹕完成后在管道节点上直接标出动态 / 静态 */
 function pelicanCaption(p?: PelicanResult): string {
@@ -26,6 +71,8 @@ function pelicanCaption(p?: PelicanResult): string {
 const STAGES: Stage[] = ["detect", "basic", "candy", "inference", "pelican"];
 
 interface Run {
+  /** 本次要跑的步骤 */
+  stages: Stage[];
   plans: StagePlan[];
   status: Partial<Record<Stage, StageStatus>>;
   scores: Partial<Record<Stage, number | null>>;
@@ -36,6 +83,7 @@ interface Run {
 }
 
 const EMPTY_RUN: Run = {
+  stages: [],
   plans: [],
   status: {},
   scores: {},
@@ -68,7 +116,8 @@ export default function Home() {
     setRun((r) => {
       switch (e.type) {
         case "start":
-          return { ...EMPTY_RUN, plans: e.stages, status: Object.fromEntries(e.stages.map((p) => [p.id, "pending"])) };
+          // 每一步单独请求，各自的 start 只带这一步的计划，逐个并入
+          return { ...r, plans: [...r.plans.filter((p) => !e.stages.some((s) => s.id === p.id)), ...e.stages] };
         case "stage.start":
           return { ...r, current: e.stage, stageStartedAt: Date.now(), status: { ...r.status, [e.stage]: "active" } };
         case "answer":
@@ -80,14 +129,10 @@ export default function Home() {
         case "stage.error":
           return { ...r, status: { ...r.status, [e.stage]: "error" }, errors: { ...r.errors, [e.stage]: e.message } };
         case "result":
-          return { ...r, current: null, live: { ...r.live, pelican: e.result.pelican } };
+          // 每一步都会收到 result；当前步骤留到全部跑完再清空，避免两步之间面板闪一下
+          return { ...r, live: { ...r.live, pelican: e.result.pelican ?? r.live.pelican } };
       }
     });
-    if (e.type === "result") {
-      addHistory(e.result);
-      setReport(e.result);
-      setTimeout(() => setPhase("done"), 900);
-    }
   };
 
   const start = async () => {
@@ -102,24 +147,50 @@ export default function Home() {
     setError(null);
     setConfigOpen(false);
     setReport(null);
-    setRun(EMPTY_RUN);
+    const stages = STAGES.filter((s) => selected.includes(s));
+    setRun({ ...EMPTY_RUN, stages, status: Object.fromEntries(stages.map((s) => [s, "pending"])) });
     setStartedAt(Date.now());
     setNow(Date.now());
     setPhase("running");
     abort.current = new AbortController();
 
-    try {
-      await streamApi<CheckEvent>(
-        "/api/v1/check",
-        config,
-        { stages: selected, limit: config.limit || undefined, seed: config.seed },
-        handle,
-        abort.current.signal,
-      );
-    } catch (e) {
-      setPhase("idle");
-      setError((e as Error).name === "AbortError" ? "检测已停止" : (e as Error).message);
+    // 每一步单独请求一次：每次请求都有完整的函数时限（Vercel 300 秒），
+    // 思考很慢的模型不会因为前面的步骤用掉时间，让后面的步骤被跳过。seed 相同，题目和顺序不变。
+    const signal = abort.current.signal;
+    const started = Date.now();
+    const parts: Report[] = [];
+    for (const stage of stages) {
+      try {
+        await streamApi<CheckEvent>(
+          "/api/v1/check",
+          config,
+          { stages: [stage], limit: config.limit || undefined, seed: config.seed },
+          (e) => {
+            handle(e);
+            if (e.type === "result") parts.push(e.result);
+          },
+          signal,
+        );
+      } catch (e) {
+        if ((e as Error).name === "AbortError") {
+          setPhase("idle");
+          setError("检测已停止");
+          return;
+        }
+        // 这一步的请求整体失败（网络中断、平台超时等），记为这一步失败，继续下一步
+        // fetch 的网络错误是 TypeError，原文（Failed to fetch / Load failed）用户看不懂
+        const message =
+          e instanceof TypeError ? "和本站的连接中断了，这一步没有完成，可以再测一次" : (e as Error).message;
+        handle({ type: "stage.error", stage, message });
+        parts.push({ ...emptyReport(config, stages), errors: { [stage]: message } });
+      }
     }
+
+    setRun((r) => ({ ...r, current: null }));
+    const merged = mergeReports(parts, stages, started);
+    addHistory(merged);
+    setReport(merged);
+    setTimeout(() => setPhase("done"), 900);
   };
 
   const exportReport = () => {
@@ -138,13 +209,12 @@ export default function Home() {
       return { id, status: on ? "pending" : "off", progress: 0, caption: on ? "待检测" : "已跳过" };
     }
     const plan = run.plans.find((p) => p.id === id);
-    if (!plan)
-      return {
-        id,
-        status: run.plans.length ? "off" : "pending",
-        progress: 0,
-        caption: run.plans.length ? "已跳过" : "准备中",
-      };
+    if (!run.stages.includes(id)) return { id, status: "off", progress: 0, caption: "已跳过" };
+    if (!plan) {
+      // 还没轮到这一步的请求；失败时也可能一直没有计划
+      const failed = run.status[id] === "error";
+      return { id, status: failed ? "error" : "pending", progress: 0, caption: failed ? "未完成" : "等待中" };
+    }
     const status = run.status[id] ?? "pending";
     const done =
       id === "detect"
@@ -160,7 +230,9 @@ export default function Home() {
         : status === "done"
           ? id === "pelican"
             ? pelicanCaption(run.live.pelican)
-            : "完成"
+            : run.scores[id] === null
+              ? "调用失败"
+              : "完成"
           : status === "error"
             ? "未完成"
             : "等待中";
