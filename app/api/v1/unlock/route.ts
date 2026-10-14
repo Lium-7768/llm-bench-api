@@ -34,7 +34,8 @@ export async function POST(req: Request) {
     scored("detect") && scored("basic") && scored("inference") && got.has("pelican") && got.get("candy") === 100;
   if (!qualified) return fail("条件未满足", 403, "locked");
 
-  const ttl = 3600;
+  // 存进报告里长期使用：30 天内从历史记录打开这份报告都能进入
+  const ttl = 30 * 24 * 3600;
   return ok({
     token: sign("unlock", target, ttl, {}),
     expiresAt: new Date(Date.now() + ttl * 1000).toISOString(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Download, Egg, GitCompareArrows, Play, RotateCcw, Settings2, Square } from "lucide-react";
+import { ArrowLeft, Download, GitCompareArrows, Play, RotateCcw, Settings2, Square } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { CheckEvent, StagePlan } from "@/lib/check";
@@ -16,8 +16,7 @@ import { PRESETS } from "@/lib/presets";
 import { compositeScore } from "@/lib/scoring";
 import { analysisOf } from "@/lib/svg";
 import { postApi, streamApi } from "@/lib/web/api";
-import { saveEgg, useEgg } from "@/lib/web/egg";
-import { addHistory } from "@/lib/web/storage";
+import { addHistory, patchHistory } from "@/lib/web/storage";
 
 function originOf(url: string): string {
   try {
@@ -105,7 +104,6 @@ export default function Home() {
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(0);
   const abort = useRef<AbortController | null>(null);
-  const egg = useEgg();
 
   useEffect(() => {
     document.body.classList.toggle("is-running", phase === "running");
@@ -199,7 +197,10 @@ export default function Home() {
     // 五步都有凭证、糖果全对时试着换解锁令牌；条件不满足或服务端没开彩蛋都不提示
     if (stamps.length === STAGES.length && merged.candy?.score === 100) {
       postApi<{ token: string; expiresAt: string }>("/api/v1/unlock", config, { stamps })
-        .then((d) => saveEgg({ ...d, reportId: merged.id, model: merged.model }))
+        .then((unlock) => {
+          patchHistory(merged.id, { unlock });
+          setReport((r) => (r?.id === merged.id ? { ...r, unlock } : r));
+        })
         .catch(() => {});
     }
   };
@@ -468,15 +469,6 @@ export default function Home() {
                     />
                     <IconButton label="导出报告 JSON" icon={<Download size={18} />} onClick={exportReport} />
                     <IconLink href="/compare" label="和其他模型对比" icon={<GitCompareArrows size={18} />} />
-                    {egg?.reportId === report.id && (
-                      <span className="relative isolate inline-grid">
-                        <span
-                          aria-hidden
-                          className="absolute -inset-1.5 -z-10 rounded-2xl spectrum-bg opacity-90 blur-sm motion-safe:animate-pulse"
-                        />
-                        <IconLink href="/arena" label="你发现了一个彩蛋" icon={<Egg size={18} />} />
-                      </span>
-                    )}
                   </>
                 }
               />

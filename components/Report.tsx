@@ -8,6 +8,7 @@ import { CATEGORY_LABELS } from "@/lib/bank";
 import type { AnswerResult, BenchResult, CheckStatus, DetectResult, PelicanResult, Report, Stage } from "@/lib/types";
 import { ANIMATION_LABEL, FORMAT_HINT, FORMAT_LABEL, analysisOf } from "@/lib/svg";
 import { STATUS_LABEL, VERDICT_LABEL, formatMs, formatTime, protocolLabel } from "@/lib/web/format";
+import { EggEntry } from "./EggEntry";
 import { Bar, ScoreDial, useCountUp } from "./Score";
 import { STAGE_INFO, StageIcon } from "./StageIcon";
 import { IconButton, Modal, Panel, Pill, cx } from "./ui";
@@ -135,7 +136,10 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
                   )}
                 </p>
               )}
-              {actions && <div className="mt-1 flex justify-center gap-2 sm:justify-start">{actions}</div>}
+              <div className="mt-1 flex justify-center gap-2 empty:hidden sm:justify-start">
+                {actions}
+                <EggEntry report={report} />
+              </div>
             </div>
           </div>
         </Panel>

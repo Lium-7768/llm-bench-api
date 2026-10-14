@@ -190,6 +190,11 @@ export interface Report {
   arena?: ArenaResult;
   /** 编程彩蛋的前端赛道结果，同上 */
   arenaFrontend?: ArenaResult;
+  /**
+   * 编程彩蛋的解锁凭证：五步跑完、糖果全对时由 /api/v1/unlock 签发，网页存进报告，之后从历史记录打开也能进入。
+   * 只对当时测的接口、模型和密钥有效，接口不返回
+   */
+  unlock?: { token: string; expiresAt: string };
   /** 某一步整体失败或被跳过的原因 */
   errors: Partial<Record<Stage, string>>;
 }
