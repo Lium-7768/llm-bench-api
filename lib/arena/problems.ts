@@ -1,5 +1,6 @@
 import type { ArenaTier } from "../types";
 import { HARD_PROBLEMS } from "./hard";
+import { KING_PROBLEMS } from "./king";
 import { TIERS } from "./meta";
 import { int, lines, nums, rng } from "./util";
 
@@ -8,7 +9,7 @@ import { int, lines, nums, rng } from "./util";
  * 题目全部原创。隐藏测试由固定种子生成，期望输出由参考解算出，样例输出也来自参考解，避免题面和测试对不上。
  * 改题目、测试或参考解后递增 ARENA_VERSION。
  */
-export const ARENA_VERSION = "2026.10.2";
+export const ARENA_VERSION = "2026.10.3";
 
 export interface Problem {
   id: string;
@@ -18,7 +19,7 @@ export interface Problem {
   /** 题面，不含样例（样例由 sample 和参考解自动补上） */
   statement: string;
   sample: string;
-  /** 白金档给出的「祖传代码」：Python 写的、带 bug 的实现 */
+  /** 黄金档给出的「祖传代码」：Python 写的、带 bug 的实现 */
   legacy?: string;
   /** 参考解：输入全文 → 标准输出 */
   solve: (input: string) => string;
@@ -238,213 +239,10 @@ const PROBLEMS: Problem[] = [
     },
   },
 
-  // ---------- 黄金：动态规划、图 ----------
+  // ---------- 黄金：祖传 bug ----------
   {
-    id: "gold-maze",
+    id: "gold-dijkstra",
     tier: "gold",
-    title: "迷宫最短路",
-    tags: ["图", "BFS"],
-    statement: `第一行两个整数 R C（1 ≤ R, C ≤ 300），接下来 R 行，每行 C 个字符，表示迷宫：
-. 是空地，# 是墙，S 是起点，E 是终点（各恰好一个）。每步可以向上下左右走一格，不能走出边界或走进墙。
-
-输出：从 S 到 E 的最少步数；走不到输出 -1。`,
-    sample: "3 4\nS.#.\n.##E\n....\n",
-    solve: (input) => {
-      const ls = lines(input);
-      const [R, C] = nums(ls[0]);
-      const grid = ls.slice(1, R + 1);
-      const dist = new Int32Array(R * C).fill(-1);
-      let start = 0;
-      let end = 0;
-      for (let r = 0; r < R; r++)
-        for (let c = 0; c < C; c++) {
-          if (grid[r][c] === "S") start = r * C + c;
-          if (grid[r][c] === "E") end = r * C + c;
-        }
-      const queue = [start];
-      dist[start] = 0;
-      for (let head = 0; head < queue.length; head++) {
-        const cur = queue[head];
-        const r = Math.floor(cur / C);
-        const c = cur % C;
-        for (const [dr, dc] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
-          const nr = r + dr;
-          const nc = c + dc;
-          if (nr < 0 || nc < 0 || nr >= R || nc >= C || grid[nr][nc] === "#" || dist[nr * C + nc] >= 0) continue;
-          dist[nr * C + nc] = dist[cur] + 1;
-          queue.push(nr * C + nc);
-        }
-      }
-      return String(dist[end]);
-    },
-    inputs: (rand) => {
-      const maze = (rows: string[]) => `${rows.length} ${rows[0].length}\n${rows.join("\n")}`;
-      const open = Array.from({ length: 300 }, () => ".".repeat(300).split(""));
-      open[0][0] = "S";
-      open[299][299] = "E";
-      // 蛇形迷宫：每隔一行一堵墙，缺口左右交替
-      const snake = Array.from({ length: 299 }, (_, r) =>
-        r % 2 === 0 ? ".".repeat(300) : r % 4 === 1 ? "#".repeat(299) + "." : "." + "#".repeat(299),
-      ).map((row) => row.split(""));
-      snake[0][0] = "S";
-      snake[298][0] = "E";
-      const random = (wall: number) => {
-        const g = Array.from({ length: 300 }, () =>
-          Array.from({ length: 300 }, (): string => (rand() < wall ? "#" : ".")),
-        );
-        g[int(rand, 0, 299)][int(rand, 0, 299)] = "S";
-        let r: number;
-        let c: number;
-        do [r, c] = [int(rand, 0, 299), int(rand, 0, 299)];
-        while (g[r][c] === "S");
-        g[r][c] = "E";
-        return maze(g.map((row) => row.join("")));
-      };
-      return [
-        "1 2\nSE",
-        "1 3\nS#E",
-        "3 3\nS..\n###\n..E",
-        "3 3\n.S.\n.#.\n.E.",
-        "5 5\nS...#\n###.#\n...#.\n.#...\n.##.E",
-        maze(open.map((row) => row.join(""))),
-        maze(snake.map((row) => row.join(""))),
-        random(0.3),
-        random(0.45),
-      ].map((l) => l + "\n");
-    },
-  },
-  {
-    id: "gold-coins",
-    tier: "gold",
-    title: "凑零钱的方法数",
-    tags: ["动态规划"],
-    statement: `第一行两个整数 n 和 amount（1 ≤ n ≤ 100，0 ≤ amount ≤ 10000），第二行 n 个互不相同的正整数，是硬币的面值（不超过 10000）。
-每种硬币数量不限。求凑出总额恰好为 amount 的方法数。只看每种硬币用了几枚，不看顺序：1+2 和 2+1 是同一种方法。
-amount 为 0 时有 1 种方法（什么都不选）。
-
-输出：方法数除以 1000000007 的余数。`,
-    sample: "3 5\n1 2 5\n",
-    solve: (input) => {
-      const [n, amount, ...coins] = nums(input);
-      const MOD = 1_000_000_007;
-      const ways = new Array<number>(amount + 1).fill(0);
-      ways[0] = 1;
-      for (const coin of coins.slice(0, n))
-        for (let v = coin; v <= amount; v++) ways[v] = (ways[v] + ways[v - coin]) % MOD;
-      return String(ways[amount]);
-    },
-    inputs: (rand) => {
-      const distinct = (count: number, max: number) => {
-        const set = new Set<number>();
-        while (set.size < count) set.add(int(rand, 1, max));
-        return [...set];
-      };
-      const many = distinct(60, 500);
-      return [
-        "1 3\n2",
-        "1 0\n7",
-        "3 4\n1 2 3",
-        "2 10\n10 1",
-        "3 7\n2 4 6",
-        "1 10000\n1",
-        `100 10000\n${Array.from({ length: 100 }, (_, i) => i + 1).join(" ")}`,
-        `60 9973\n${many.join(" ")}`,
-        `5 10000\n${distinct(5, 50).join(" ")}`,
-      ].map((l) => l + "\n");
-    },
-  },
-  {
-    id: "gold-courses",
-    tier: "gold",
-    title: "选课顺序",
-    tags: ["图", "拓扑排序"],
-    statement: `有 n 门课，编号 1 到 n。第一行两个整数 n 和 m（1 ≤ n ≤ 100000，0 ≤ m ≤ 200000），
-接下来 m 行，每行两个整数 a b，表示课 a 必须排在课 b 前面（可能有重复的约束，也可能 a = b）。
-在满足全部约束的排法里，找出「字典序最小」的一种：第一门课的编号尽量小，相同时第二门尽量小，依此类推。编号按数值比较。
-
-输出：一行，n 个编号用空格隔开；无论怎样都排不出来时输出 IMPOSSIBLE。`,
-    sample: "4 3\n4 1\n3 1\n2 1\n",
-    solve: (input) => {
-      const [n, m, ...rest] = nums(input);
-      const next: number[][] = Array.from({ length: n + 1 }, () => []);
-      const indeg = new Int32Array(n + 1);
-      for (let i = 0; i < m; i++) {
-        next[rest[2 * i]].push(rest[2 * i + 1]);
-        indeg[rest[2 * i + 1]]++;
-      }
-      // 小根堆
-      const heap: number[] = [];
-      const push = (x: number) => {
-        heap.push(x);
-        for (let i = heap.length - 1; i > 0;) {
-          const p = (i - 1) >> 1;
-          if (heap[p] <= heap[i]) break;
-          [heap[p], heap[i]] = [heap[i], heap[p]];
-          i = p;
-        }
-      };
-      const pop = () => {
-        const top = heap[0];
-        const last = heap.pop()!;
-        if (heap.length) {
-          heap[0] = last;
-          for (let i = 0; ;) {
-            const l = 2 * i + 1;
-            const r = l + 1;
-            let min = i;
-            if (l < heap.length && heap[l] < heap[min]) min = l;
-            if (r < heap.length && heap[r] < heap[min]) min = r;
-            if (min === i) break;
-            [heap[min], heap[i]] = [heap[i], heap[min]];
-            i = min;
-          }
-        }
-        return top;
-      };
-      for (let v = 1; v <= n; v++) if (indeg[v] === 0) push(v);
-      const order: number[] = [];
-      while (heap.length) {
-        const v = pop();
-        order.push(v);
-        for (const w of next[v]) if (--indeg[w] === 0) push(w);
-      }
-      return order.length === n ? order.join(" ") : "IMPOSSIBLE";
-    },
-    inputs: (rand) => {
-      const dag = (n: number, m: number, cycle = false) => {
-        const rank = Array.from({ length: n }, (_, i) => i + 1).sort(() => rand() - 0.5);
-        const edges: string[] = [];
-        for (let i = 0; i < m; i++) {
-          const x = int(rand, 0, n - 2);
-          const y = int(rand, x + 1, n - 1);
-          edges.push(`${rank[x]} ${rank[y]}`);
-        }
-        if (cycle) edges.push(`${rank[n - 1]} ${rank[0]}`);
-        return `${n} ${edges.length}\n${edges.join("\n")}`;
-      };
-      return [
-        "3 0",
-        "3 2\n1 3\n2 3",
-        "3 3\n1 2\n2 3\n3 1",
-        "12 1\n10 2",
-        "2 1\n1 1",
-        "2 2\n2 1\n2 1",
-        dag(2000, 3000),
-        dag(20000, 30000),
-        dag(20000, 30000, true),
-      ].map((l) => l + "\n");
-    },
-  },
-
-  // ---------- 白金：祖传 bug ----------
-  {
-    id: "platinum-dijkstra",
-    tier: "platinum",
     title: "祖传最短路",
     tags: ["图", "最短路", "修 bug"],
     statement: `n 个路口、m 条双向道路。第一行两个整数 n 和 m（1 ≤ n ≤ 100000，0 ≤ m ≤ 200000），
@@ -545,8 +343,8 @@ main()`,
     },
   },
   {
-    id: "platinum-lis",
-    tier: "platinum",
+    id: "gold-lis",
+    tier: "gold",
     title: "祖传递增子序列",
     tags: ["动态规划", "二分", "修 bug"],
     statement: `第一行一个整数 n（1 ≤ n ≤ 100000），第二行 n 个整数（绝对值不超过 10^9）。
@@ -603,8 +401,8 @@ main()`,
     },
   },
   {
-    id: "platinum-knapsack",
-    tier: "platinum",
+    id: "gold-knapsack",
+    tier: "gold",
     title: "祖传背包",
     tags: ["动态规划", "修 bug"],
     statement: `n 件物品，每件最多选一次。第一行两个整数 n 和 W（1 ≤ n ≤ 100，0 ≤ W ≤ 10000），
@@ -656,7 +454,7 @@ main()`,
 
 export function problemsOf(tier: ArenaTier): Problem[] {
   if (!TIERS.includes(tier)) return [];
-  return [...PROBLEMS, ...HARD_PROBLEMS].filter((p) => p.tier === tier);
+  return [...PROBLEMS, ...HARD_PROBLEMS, ...KING_PROBLEMS].filter((p) => p.tier === tier);
 }
 
 export interface TestCase {

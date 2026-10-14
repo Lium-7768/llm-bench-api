@@ -2,7 +2,7 @@ import type { Problem } from "./problems";
 import { int, lines, nums, randomText } from "./util";
 
 /**
- * 钻石、王者两档：难点在算法本身，不在数据量。输入规模控制在几百 KB 以内，
+ * 白金、钻石两档：难点在算法本身，不在数据量。输入规模控制在几百 KB 以内，
  * 但暴力做法（O(n²) 枚举、逐个数、搜索所有子集）在任何语言里都会超时。
  */
 
@@ -16,10 +16,10 @@ const E18 = BigInt("1000000000000000000");
 const mulmod = (a: number, b: number) => (((a * (b >>> 15)) % P) * 32768 + a * (b & 32767)) % P;
 
 export const HARD_PROBLEMS: Problem[] = [
-  // ---------- 钻石：字符串算法、图论建模、数位 DP ----------
+  // ---------- 白金：字符串算法、图论建模、数位 DP ----------
   {
-    id: "diamond-palindrome",
-    tier: "diamond",
+    id: "platinum-palindrome",
+    tier: "platinum",
     title: "最长回文子串",
     tags: ["字符串", "Manacher"],
     statement: `输入一行只含小写字母的字符串 s（长度 1 到 200000）。
@@ -67,8 +67,8 @@ export const HARD_PROBLEMS: Problem[] = [
     },
   },
   {
-    id: "diamond-gems",
-    tier: "diamond",
+    id: "platinum-gems",
+    tier: "platinum",
     title: "收集宝石",
     tags: ["图", "强连通分量", "DAG 动态规划"],
     statement: `地下城有 n 个房间（编号 1 到 n）和 m 条单向通道。房间 i 里有 w_i 颗宝石。
@@ -195,8 +195,8 @@ export const HARD_PROBLEMS: Problem[] = [
     },
   },
   {
-    id: "diamond-digits",
-    tier: "diamond",
+    id: "platinum-digits",
+    tier: "platinum",
     title: "不吉利的数字",
     tags: ["数位 DP", "大整数"],
     statement: `第一行一个整数 T（1 ≤ T ≤ 100），接下来 T 行，每行三个整数 L R K（1 ≤ L ≤ R ≤ 10^18，1 ≤ K ≤ 100）。
@@ -267,10 +267,10 @@ export const HARD_PROBLEMS: Problem[] = [
     },
   },
 
-  // ---------- 王者：后缀自动机、最小割建模、矩阵快速幂 ----------
+  // ---------- 钻石：后缀自动机、最小割建模、矩阵快速幂 ----------
   {
-    id: "king-common",
-    tier: "king",
+    id: "diamond-common",
+    tier: "diamond",
     title: "最长公共子串",
     tags: ["字符串", "后缀自动机"],
     statement: `输入两行，各一个只含小写字母的字符串 s 和 t（长度都在 1 到 100000 之间）。
@@ -352,8 +352,8 @@ export const HARD_PROBLEMS: Problem[] = [
     },
   },
   {
-    id: "king-projects",
-    tier: "king",
+    id: "diamond-projects",
+    tier: "diamond",
     title: "项目取舍",
     tags: ["图论建模", "最小割", "网络流"],
     statement: `公司有 n 个可选项目，编号 1 到 n。做项目 i 的净收益是 p_i，可能是负数（亏钱，比如基础设施）。
@@ -460,8 +460,8 @@ export const HARD_PROBLEMS: Problem[] = [
     },
   },
   {
-    id: "king-recurrence",
-    tier: "king",
+    id: "diamond-recurrence",
+    tier: "diamond",
     title: "递推数列求和",
     tags: ["矩阵快速幂", "取模", "大整数"],
     statement: `数列 a 的前 k 项 a_1…a_k 已知；从第 k+1 项起，a_i = c_1·a_(i−1) + c_2·a_(i−2) + … + c_k·a_(i−k)。

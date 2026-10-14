@@ -16,7 +16,7 @@
  * - Anthropic 协议不支持工具调用，会显示「不支持」；响应声明的模型固定是 gpt-4o，用 claude 模型名测试时会判为换模型
  * - Gemini 协议的流式一次性返回，会判为假流式
  * - 鹈鹕图：OpenAI / Gemini 协议返回纯 SVG 静态图；Anthropic 协议返回包在代码块里的动态图（SMIL 转动车轮）
- * - 编程彩蛋：只会 Python，白金档（修祖传代码）只答对一题，所以段位是黄金；其他语言交一段打招呼的程序，青铜就过不去。
+ * - 编程彩蛋：只会 Python，黄金档（修祖传代码）只答对一题，所以段位是白银；其他语言交一段打招呼的程序，青铜就过不去。
  *   代码真的交给 Judge0 公共实例运行，需要联网
  */
 import http from "node:http";
@@ -103,35 +103,6 @@ for i,c in enumerate(s):
     if seen.get(c,-1)>=l: l=seen[c]+1
     seen[c]=i;b=max(b,i-l+1)
 print(b)`,
-  迷宫最短路: String.raw`import sys
-from collections import deque
-L=sys.stdin.read().split("\n");R,C=map(int,L[0].split());g=L[1:R+1]
-for r in range(R):
-    for c in range(C):
-        if g[r][c]=="S":s=(r,c)
-        if g[r][c]=="E":e=(r,c)
-D={s:0};q=deque([s])
-while q:
-    r,c=q.popleft()
-    for a,b in((r+1,c),(r-1,c),(r,c+1),(r,c-1)):
-        if 0<=a<R and 0<=b<C and g[a][b]!="#" and (a,b) not in D: D[(a,b)]=D[(r,c)]+1;q.append((a,b))
-print(D.get(e,-1))`,
-  凑零钱的方法数: String.raw`import sys
-d=list(map(int,sys.stdin.read().split()));n,A=d[0],d[1];w=[1]+[0]*A
-for c in d[2:2+n]:
-    for v in range(c,A+1): w[v]=(w[v]+w[v-c])%1000000007
-print(w[A])`,
-  选课顺序: String.raw`import sys,heapq
-d=list(map(int,sys.stdin.read().split()));n,m=d[0],d[1];g=[[] for _ in range(n+1)];deg=[0]*(n+1)
-for i in range(m):
-    a,b=d[2+2*i],d[3+2*i];g[a].append(b);deg[b]+=1
-h=[v for v in range(1,n+1) if deg[v]==0];heapq.heapify(h);o=[]
-while h:
-    v=heapq.heappop(h);o.append(v)
-    for w in g[v]:
-        deg[w]-=1
-        if deg[w]==0: heapq.heappush(h,w)
-print(" ".join(map(str,o)) if len(o)==n else "IMPOSSIBLE")`,
   祖传背包: String.raw`import sys
 d=list(map(int,sys.stdin.read().split()));n,W=d[0],d[1];NEG=-1;b=[0]+[NEG]*W
 for i in range(n):
