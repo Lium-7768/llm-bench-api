@@ -3,6 +3,7 @@
 import { Code2, Film, Image as ImageIcon, Maximize2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState, type ReactNode } from "react";
+import { LANGUAGE_LABEL, TIER_LABEL } from "@/lib/arena/meta";
 import { CATEGORY_LABELS } from "@/lib/bank";
 import type { AnswerResult, BenchResult, CheckStatus, DetectResult, PelicanResult, Report, Stage } from "@/lib/types";
 import { ANIMATION_LABEL, FORMAT_HINT, FORMAT_LABEL, analysisOf } from "@/lib/svg";
@@ -113,6 +114,15 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
               <p className="text-sm text-readout">
                 综合得分 = 指纹检测 30% + 基础测试 40% + 糖果测试 30%，综合推理和鹈鹕测试单独展示，不计分。
               </p>
+              {report.arena && (
+                <p className="text-sm">
+                  编程段位{" "}
+                  <strong className="font-display font-semibold text-violet">
+                    {report.arena.rank ? TIER_LABEL[report.arena.rank] : "未入段"}
+                  </strong>
+                  <span className="ml-1.5 text-readout">（{LANGUAGE_LABEL[report.arena.language]}）</span>
+                </p>
+              )}
               {actions && <div className="mt-1 flex justify-center gap-2 sm:justify-start">{actions}</div>}
             </div>
           </div>

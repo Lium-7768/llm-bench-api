@@ -186,6 +186,62 @@ export interface Report {
   /** 综合推理测试结果，独立于综合分 */
   inference?: BenchResult;
   pelican?: PelicanResult;
+  /** 编程彩蛋的段位赛结果，只由网页在浏览器里补进报告，接口不返回 */
+  arena?: ArenaResult;
   /** 某一步整体失败或被跳过的原因 */
   errors: Partial<Record<Stage, string>>;
+}
+
+// ---------------------------------------------------------------- 编程彩蛋
+
+/**
+ * 编程段位赛：五步全部跑完、糖果测试全对后才能进入，不计入综合分。
+ * 模型按题面写完整程序，交给外部判题服务（Judge0）运行隐藏测试。
+ */
+export type ArenaLanguage = "python" | "javascript" | "java" | "go";
+
+/** 段位从低到高 */
+export type ArenaTier = "bronze" | "platinum" | "diamond" | "king";
+
+/**
+ * accepted 全部通过；wrong_answer 答案错误；time_limit 超时；compile_error 编译失败；
+ * runtime_error 运行出错；no_code 回答里没有代码；error 调用模型或判题服务失败（不算模型答错）
+ */
+export type ProblemVerdict =
+  "accepted" | "wrong_answer" | "time_limit" | "compile_error" | "runtime_error" | "no_code" | "error";
+
+export interface ProblemResult {
+  id: string;
+  title: string;
+  verdict: ProblemVerdict;
+  passedTests: number;
+  totalTests: number;
+  /** 第一组没通过的测试，从 1 开始；不给输入，测试是隐藏的 */
+  failedTest?: number;
+  /** 编译或运行错误信息、调用失败原因（截断） */
+  detail?: string;
+  /** 从回答里提取的代码 */
+  code: string;
+  /** 模型作答用时 */
+  latencyMs: number;
+  usage?: Usage;
+}
+
+export interface TierResult {
+  tier: ArenaTier;
+  language: ArenaLanguage;
+  /** 答对 2 题及以上 */
+  passed: boolean;
+  problems: ProblemResult[];
+  durationMs: number;
+  /** 调用失败导致这一档无法判定，可以重试 */
+  error?: string;
+}
+
+export interface ArenaResult {
+  language: ArenaLanguage;
+  /** 通过的最高段位；一档都没过为 null */
+  rank: ArenaTier | null;
+  tiers: TierResult[];
+  startedAt: string;
 }

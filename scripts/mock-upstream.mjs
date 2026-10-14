@@ -5,16 +5,19 @@
  * 用法：
  *   pnpm mock                     # 监听 4555 端口
  *   SLOW=1 pnpm mock              # 每次响应随机延迟 0.3–2.5 秒，便于观察动效
+ *   EGG=1 pnpm mock               # 糖果题全答对，跑完五步能解锁编程彩蛋（服务端要配置 LLMBENCH_SECRET）
  *   ALLOW_PRIVATE_BASE_URL=true pnpm dev
  * 然后在页面里选「自定义 / 中转站」，地址填 http://127.0.0.1:4555/v1，密钥随意，
  * 协议选 Anthropic 时密钥需填 k。
  *
  * 故意留下的瑕疵，用来验证判分和检测是否生效：
- * - 「激光笔」那道糖果题回答 0（正确答案是 10），会被判错
+ * - 「激光笔」那道糖果题回答 0（正确答案是 10），会被判错；EGG=1 时答对
  * - 自报身份是 Claude，用其他模型名测试时「身份自报」会显示存疑
  * - Anthropic 协议不支持工具调用，会显示「不支持」；响应声明的模型固定是 gpt-4o，用 claude 模型名测试时会判为换模型
  * - Gemini 协议的流式一次性返回，会判为假流式
  * - 鹈鹕图：OpenAI / Gemini 协议返回纯 SVG 静态图；Anthropic 协议返回包在代码块里的动态图（SMIL 转动车轮）
+ * - 编程彩蛋：只会 Python，王者档只答对一题，所以段位是钻石；其他语言交一段打招呼的程序，青铜就过不去。
+ *   代码真的交给 Judge0 公共实例运行，需要联网
  */
 import http from "node:http";
 
@@ -47,7 +50,7 @@ const ANSWERS = [
   [/红楼梦/, "曹雪芹"],
   [/Quantum Banana/, "不存在"],
   [/10 颗糖/, "无解"],
-  [/激光笔/, "0"],
+  [/激光笔/, process.env.EGG ? "10" : "0"],
   [/strawberrry/, "4"],
   [/今天天气很好/, "The weather is nice today"],
   [/7 个汉字/, "中国首都是北京"],
@@ -71,8 +74,82 @@ const animatedPelican = (svg) =>
   ) +
   "\n```";
 
+/** 编程彩蛋的参考答案，按题目标题查 */
+const PY_SOLUTIONS = {
+  回文句子: String.raw`s=[c.lower() for c in input() if c.isascii() and c.isalnum()]
+print("YES" if s==s[::-1] else "NO")`,
+  第二大的数: String.raw`import sys
+d=sys.stdin.read().split();n=int(d[0]);v=sorted(set(map(int,d[1:1+n])))
+print(v[-2] if len(v)>1 else "NONE")`,
+  行程编码: String.raw`from itertools import groupby
+print("".join(k+str(len(list(g))) for k,g in groupby(input().strip())))`,
+  两数之和计数: String.raw`import sys
+from collections import Counter
+d=sys.stdin.read().split();n,k=int(d[0]),int(d[1]);c=Counter(map(int,d[2:2+n]))
+t=0
+for x,a in c.items():
+    y=k-x
+    if x<y: t+=a*c.get(y,0)
+    elif x==y: t+=a*(a-1)//2
+print(t)`,
+  合并区间: String.raw`import sys
+d=list(map(int,sys.stdin.read().split()));n=d[0];iv=sorted(zip(d[1:2*n+1:2],d[2:2*n+2:2]));out=[]
+for l,r in iv:
+    if out and l<=out[-1][1]: out[-1][1]=max(out[-1][1],r)
+    else: out.append([l,r])
+print(len(out));print("\n".join(f"{l} {r}" for l,r in out))`,
+  最长不重复片段: String.raw`s=input().strip();seen={};l=b=0
+for i,c in enumerate(s):
+    if seen.get(c,-1)>=l: l=seen[c]+1
+    seen[c]=i;b=max(b,i-l+1)
+print(b)`,
+  迷宫最短路: String.raw`import sys
+from collections import deque
+L=sys.stdin.read().split("\n");R,C=map(int,L[0].split());g=L[1:R+1]
+for r in range(R):
+    for c in range(C):
+        if g[r][c]=="S":s=(r,c)
+        if g[r][c]=="E":e=(r,c)
+D={s:0};q=deque([s])
+while q:
+    r,c=q.popleft()
+    for a,b in((r+1,c),(r-1,c),(r,c+1),(r,c-1)):
+        if 0<=a<R and 0<=b<C and g[a][b]!="#" and (a,b) not in D: D[(a,b)]=D[(r,c)]+1;q.append((a,b))
+print(D.get(e,-1))`,
+  凑零钱的方法数: String.raw`import sys
+d=list(map(int,sys.stdin.read().split()));n,A=d[0],d[1];w=[1]+[0]*A
+for c in d[2:2+n]:
+    for v in range(c,A+1): w[v]=(w[v]+w[v-c])%1000000007
+print(w[A])`,
+  选课顺序: String.raw`import sys,heapq
+d=list(map(int,sys.stdin.read().split()));n,m=d[0],d[1];g=[[] for _ in range(n+1)];deg=[0]*(n+1)
+for i in range(m):
+    a,b=d[2+2*i],d[3+2*i];g[a].append(b);deg[b]+=1
+h=[v for v in range(1,n+1) if deg[v]==0];heapq.heapify(h);o=[]
+while h:
+    v=heapq.heappop(h);o.append(v)
+    for w in g[v]:
+        deg[w]-=1
+        if deg[w]==0: heapq.heappush(h,w)
+print(" ".join(map(str,o)) if len(o)==n else "IMPOSSIBLE")`,
+  祖传背包: String.raw`import sys
+d=list(map(int,sys.stdin.read().split()));n,W=d[0],d[1];NEG=-1;b=[0]+[NEG]*W
+for i in range(n):
+    w,v=d[2+2*i],d[3+2*i]
+    for c in range(W,w-1,-1):
+        if b[c-w]>=0 and b[c-w]+v>b[c]: b[c]=b[c-w]+v
+print(b[W])`,
+};
+
+const arena = (text) => {
+  const m = text.match(/^请用 (\S+) 解决下面的题目[\s\S]*?\n# (.+)\n/);
+  if (!m) return null;
+  const code = m[1] === "Python" && PY_SOLUTIONS[m[2]];
+  return code ? "```python\n" + code + "\n```" : "```\nprint('hello')\n```";
+};
+
 const reply = (text, system) =>
-  system?.includes("ZEBRA") ? "ZEBRA-7749" : (ANSWERS.find(([re]) => re.test(text))?.[1] ?? "好");
+  system?.includes("ZEBRA") ? "ZEBRA-7749" : (arena(text) ?? ANSWERS.find(([re]) => re.test(text))?.[1] ?? "好");
 
 const send = (res, status, body) => {
   res.writeHead(status, { "content-type": "application/json" });

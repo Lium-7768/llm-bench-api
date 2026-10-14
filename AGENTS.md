@@ -46,7 +46,10 @@ app/
     models/route.ts     POST 列出被测接口的可用模型
     questions/route.ts  GET  题库（默认不带答案）
     openapi/route.ts    GET  OpenAPI 3.1 描述
+    unlock/route.ts     POST 编程彩蛋：五步凭证换解锁令牌（不公开）
+    arena/route.ts      POST 编程彩蛋：跑一档段位赛，SSE（不公开）
   page.tsx              检测页：启动台 → 运行中 → 报告
+  arena/page.tsx        编程彩蛋页，没有解锁令牌时只显示「这里什么都没有」
   compare/page.tsx      模型对比（只列没有报错的报告）
   history/page.tsx      历史记录（正常报告可看详情，报错报告只能删除）
   docs/page.tsx         API 接入文档
@@ -75,8 +78,11 @@ lib/                    服务端与共享逻辑
   presets.ts            服务商预设
   http.ts               统一响应信封、CORS、读取被测接口、SSE、SSRF 防护
   channel.ts            异步队列，把并发结果转成按顺序消费的事件
+  stamp.ts              无状态 HMAC 凭证（编程彩蛋的门槛）
+  arena/                编程彩蛋：problems.ts（题目、隐藏测试、参考解，只在服务端）、judge.ts（Judge0 适配）、
+                        run.ts（一档三题的作答与判题）、meta.ts（前后端共用的常量）
   web/                  只在浏览器用：api.ts（调用本站 API）、storage.ts（localStorage）、
-                        config.ts（接口配置，useSyncExternalStore）、format.ts
+                        config.ts（接口配置，useSyncExternalStore）、format.ts、egg.ts（解锁令牌，sessionStorage）
 scripts/                smoke.mjs、mock-upstream.mjs、release.mjs
 .github/workflows/      ci.yml、release.yml
 ```
@@ -131,6 +137,7 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 - 网页**每一步单独请求一次** `/api/v1/check`（`stages: [当前步骤]`），收齐后在浏览器里合并成一份报告、重新算综合分（`lib/scoring.ts` 的 `compositeScore`）。这样每一步都有完整的函数时限，思考慢的模型不会因为前面的步骤用掉时间而让鹈鹕被跳过。seed 相同，分开请求抽到的题和顺序不变。某一步的请求整体失败时记为这一步失败，继续下一步。
 - 接口配置存在 localStorage（`llmbench.config`），关闭「记住密钥」时密钥只存 sessionStorage。
 - 历史记录键名 `llmbench.reports.v2`，最多 60 份。报告结构有不兼容改动时换键名；小改动可以在 `storage.ts` 的 `migrate()` 里读取时转换（如 v0.3.0 的步骤 `colorblind` 已改名为 `inference`）。
+- 编程彩蛋的段位赛结果在浏览器里用 `patchHistory()` 补进解锁它的那份报告（`report.arena`），报告头部显示段位。段位赛不能从历史记录再进入：解锁令牌只在刚跑完的那次检测里拿到。
 - 「报错」的定义见 `lib/web/format.ts` 的 `hasError()`：综合分为空、计分的步骤（指纹、基础、糖果）失败或被跳过、这些步骤里有题目调用失败、指纹检测无法判断。综合推理和鹈鹕不计分，它们失败只在对应卡片里显示，不算报告报错。报错的报告不进对比；历史里不能查看详情，只能删除。
 
 ## 检测内容
@@ -211,6 +218,48 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 
 **展示必须用图片**：前端用 `<img src="data:image/svg+xml,…">` 渲染，不要改成内联 SVG（`dangerouslySetInnerHTML`）。模型输出不可信，内联会执行脚本（能读到 localStorage 里的密钥）、`<style>` 会污染整页、外链资源会被加载。图片上下文里 SMIL 和 CSS 动画照常播放，脚本不执行，所以「动态」只认 SMIL 和 CSS，靠脚本驱动的动画标为静态并提示「含脚本 · 未执行」。v0.4.0 之前的历史报告没有 `analysis`，前端只按 SVG 补算动态 / 静态，不显示输出格式。
 
+### 编程彩蛋（lib/arena、lib/stamp.ts）
+
+隐藏玩法：编程段位赛，分青铜、铂金、钻石、王者四档。不计入综合分，不写进公开文档和 OpenAPI。
+
+**门槛（挡住直接访问）**，服务端仍然无状态，全靠 HMAC 签名：
+
+1. 每一步跑完，`stage.done` 事件带一个 `stamp`（步骤、得分、被测接口指纹，3 小时有效）。接口指纹是协议、地址、模型、密钥一起做的 HMAC，凭证里看不出密钥，换接口或模型就失效
+2. 网页收齐五步的凭证、且糖果测试 100 分时，调 `POST /api/v1/unlock` 换解锁令牌（1 小时）。条件：五步都跑完，指纹、基础、综合推理有分，糖果 100 分
+3. 令牌只存 sessionStorage（`llmbench.egg`）。报告页的操作按钮里出现发光的彩蛋图标，是唯一入口；直接打开 `/arena` 读不到令牌，只显示「这里什么都没有」
+4. `POST /api/v1/arena` 每次跑一档，要解锁令牌；青铜以上还要上一档通过时 `result` 事件里的 `stamp`，同一种语言，不能跳档
+
+没有配置环境变量 `LLMBENCH_SECRET`（至少 16 个字符）时不签发凭证，两个接口都返回 404，彩蛋整个关闭。改了它，已签发的凭证全部失效。
+
+**判题**：代码不在本项目里运行，交给开源判题服务 [Judge0](https://github.com/judge0/judge0)（GPL-3.0，只通过 HTTP 调用）。默认用官方公共实例 `ce.judge0.com`：免密钥、沙箱不能联网、一次最多批量提交 20 组，没有 SLA。自建实例设置 `JUDGE0_URL`，开了鉴权再设置 `JUDGE0_AUTH_TOKEN`（`X-Auth-Token`）。
+
+- 语言：Python 3.13（109）、Node.js 22（102）、Java 17（91）、Go 1.18（95），括号里是 Judge0 的语言 ID。Go 1.23 在公共实例繁忙时经常「编译超时」，所以用 1.18
+- 公共实例上新版 Python、Node 的沙箱启动就要 2.3–2.8 秒（实测），旧版太老（Python 3.8 不支持 `list[int]`，Node 12 不支持 `?.`）。所以每批额外提交一个空程序测启动耗时，超时按「用时 − 启动耗时 > 2 秒」判
+- 每题一批：全部隐藏测试 + 空程序。输出比较忽略行尾空白和结尾空行
+- 网络错误、5xx、429 退避重试三次；仍失败或 Judge0 内部错误记为 `error`（调用失败，不算模型答错）。一档里调用失败导致无法判定时，这一档带 `error`，网页提示从这一档重试
+
+**作答**：三题并发，`chatLong()` 流式取回答，单题时限不超过 200 秒，给判题留 60 秒。取回答里最长的代码块；没闭合的代码块取到结尾；没有代码块就整段当代码。王者档额外给一段带 bug 的 Python「祖传代码」，要求用所选语言写出正确程序。每档答对 2 题晋级，没过就停，段位是通过的最高一档。
+
+**题目**（全部原创，`ARENA_VERSION = "2026.10.1"`）：
+
+| 档   | ID                 | 题目           | 考点                               |
+| ---- | ------------------ | -------------- | ---------------------------------- |
+| 青铜 | bronze-palindrome  | 回文句子       | 只看字母数字（下划线不算）、空串   |
+| 青铜 | bronze-second      | 第二大的数     | 去重、全相等输出 NONE              |
+| 青铜 | bronze-rle         | 行程编码       | 多位数次数                         |
+| 铂金 | platinum-pairs     | 两数之和计数   | 哈希；答案超 32 位；O(n²) 会超时   |
+| 铂金 | platinum-intervals | 合并区间       | 端点相接也合并                     |
+| 铂金 | platinum-window    | 最长不重复片段 | 滑动窗口左端不能回退（abba）       |
+| 钻石 | diamond-maze       | 迷宫最短路     | BFS，300×300                       |
+| 钻石 | diamond-coins      | 凑零钱的方法数 | 组合不是排列，取模                 |
+| 钻石 | diamond-courses    | 选课顺序       | 字典序最小拓扑序，按数值比较；有环 |
+| 王者 | king-dijkstra      | 祖传最短路     | 祖传代码入堆就标记已访问           |
+| 王者 | king-lis           | 祖传递增子序列 | 祖传代码用 bisect_right（非严格）  |
+| 王者 | king-knapsack      | 祖传背包       | 正序循环成了完全背包、初值、W=0    |
+
+- 每题的测试 = 样例 + 8–10 组隐藏输入，由固定种子生成；期望输出和题面里的样例输出都由参考解（TypeScript）算出。单题输入合计不超过约 700KB
+- **改题目前后都要交叉验证**：另写一份独立解法（如 Python）交给 Judge0 跑全部测试，必须全部通过；王者档的祖传代码必须答错。改完递增 `ARENA_VERSION`
+
 ## 支持的模型
 
 任何兼容以下三种协议之一的接口都能测，包括各类中转站。预设服务商（`lib/presets.ts`）：
@@ -249,6 +298,7 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
   - 不要记录、返回或持久化密钥
   - 不要放开内网地址校验（`isSafeBaseUrl`）
   - 自托管评测本地模型时用环境变量 `ALLOW_PRIVATE_BASE_URL=true`，公网部署切勿开启
+  - `LLMBENCH_SECRET` 只放在部署平台的环境变量里，不要写进仓库；凭证只是门槛，不是鉴权，不要拿它保护任何敏感的东西
 - **前端**：
   - 视觉方向见 `.claude/skills/frontend-design`
   - 亮色主题，颜色用 `globals.css` 里 `@theme` 定义的语义色（`paper`、`surface`、`ink`、`readout`、`line`、`tint` 和光谱色），不要写死颜色
@@ -275,6 +325,8 @@ ALLOW_PRIVATE_BASE_URL=true pnpm dev
 # 页面里选「自定义 / 中转站」，地址 http://127.0.0.1:4555/v1，密钥随意（Anthropic 协议填 k）
 ```
 
+验证编程彩蛋：`EGG=1 pnpm mock`（糖果题全答对），服务端加 `LLMBENCH_SECRET=<任意 16 位以上>`，跑完五步后报告页出现彩蛋图标。模拟上游只会 Python，段位是钻石；代码真的交给 Judge0 公共实例运行，需要联网。
+
 模拟上游故意留了几个瑕疵（一道糖果题答错、自报身份是 Claude、Anthropic 不支持工具、Gemini 假流式），用来确认判分和检测确实生效，详见脚本开头的注释。
 
 ## 发版与部署
@@ -289,6 +341,7 @@ ALLOW_PRIVATE_BASE_URL=true pnpm dev
 
 - 一次 `/check` 请求里的所有步骤共用 285 秒。思考很慢的模型（单题思考两分钟以上）一次跑完五步时，最后的鹈鹕可能超时或被跳过。网页已经按步骤分开请求；第三方调用时也建议像网页一样每次只传一个 `stages`。
 - 身份自报依赖模型自述，部分模型会错误自报，因此不同家只记为存疑，需结合模型回显判断。
+- 编程彩蛋依赖 Judge0 公共实例，它没有 SLA、偶尔断连，同一出口 IP 请求过多可能被限流。用的人多了建议自建 Judge0 并设置 `JUDGE0_URL`。
 - 客观题只能检查回答形式和关键结论，无法验证推理过程；代码题考的是读代码、找问题，不执行模型写的代码。
 
 <!-- BEGIN:nextjs-agent-rules -->

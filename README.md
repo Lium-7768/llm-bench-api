@@ -148,3 +148,11 @@ pnpm release:patch    # 或 release:minor / release:major
 
 默认禁止把 `baseUrl` 指向 localhost 或内网地址，防止服务被当作内网探测工具（SSRF）。
 自托管评测 Ollama、vLLM 等本地模型时，可以设置 `ALLOW_PRIVATE_BASE_URL=true`。公网部署切勿开启。
+
+## 其他环境变量
+
+| 变量                | 作用                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `LLMBENCH_SECRET`   | 至少 16 个字符的随机串。设置后会开启一个隐藏彩蛋；不设置就没有。                       |
+| `JUDGE0_URL`        | 彩蛋用到的代码执行服务（[Judge0](https://github.com/judge0/judge0)），默认官方公共实例 |
+| `JUDGE0_AUTH_TOKEN` | 自建 Judge0 开启鉴权时填写                                                             |

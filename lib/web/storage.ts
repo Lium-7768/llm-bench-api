@@ -110,6 +110,11 @@ export function addHistory(report: Report) {
   writeHistory([slim, ...loadHistory().filter((h) => h.id !== report.id)].slice(0, MAX_ITEMS));
 }
 
+/** 给历史里的某份报告补字段（如编程彩蛋的段位） */
+export function patchHistory(id: string, patch: Partial<Report>) {
+  writeHistory(loadHistory().map((h) => (h.id === id ? { ...h, ...patch } : h)));
+}
+
 export function removeHistory(id: string) {
   writeHistory(loadHistory().filter((h) => h.id !== id));
 }

@@ -10,6 +10,7 @@ import { channel } from "./channel";
 import { DETECT_CHECKS, runDetect } from "./detect";
 import { hostOf } from "./llm";
 import { PELICAN_PROMPT, runPelican } from "./pelican";
+import { sign } from "./stamp";
 import type { AnswerResult, BenchResult, CheckResult, Report, Stage, Target } from "./types";
 
 /** 执行顺序 */
@@ -42,7 +43,8 @@ export type CheckEvent =
   | { type: "stage.start"; stage: Stage }
   | { type: "answer"; stage: "basic" | "candy" | "inference"; done: number; total: number; answer: AnswerResult }
   | { type: "check"; stage: "detect"; check: CheckResult }
-  | { type: "stage.done"; stage: Stage; score: number | null }
+  /** stamp：这一步跑完的签名凭证，只在配置了 LLMBENCH_SECRET 时出现，见 lib/stamp.ts */
+  | { type: "stage.done"; stage: Stage; score: number | null; stamp?: string }
   | { type: "stage.error"; stage: Stage; message: string }
   | { type: "result"; result: Report };
 
@@ -85,6 +87,9 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
 
   yield { type: "start", stages: stages.map((s) => plans[s]), pelicanPrompt: PELICAN_PROMPT };
 
+  // 凭证 3 小时有效：思考慢的模型跑完五步也要十来分钟
+  const stamp = (s: Stage, score: number | null) => sign("stage", opts.target, 3 * 3600, { s, v: score });
+
   for (const stage of stages) {
     const remaining = deadline - Date.now();
     if (opts.signal?.aborted || remaining < 5_000) {
@@ -102,7 +107,7 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
         const task = runDetect(opts.target, Math.min(30_000, remaining), (c) => events.push(c)).finally(events.close);
         for await (const check of events) yield { type: "check", stage, check };
         report.detect = await task;
-        yield { type: "stage.done", stage, score: report.detect.score };
+        yield { type: "stage.done", stage, score: report.detect.score, stamp: stamp(stage, report.detect.score) };
       } else if (stage === "basic" || stage === "candy" || stage === "inference") {
         let result: BenchResult | undefined;
         const categories = stage === "basic" ? BASIC : stage === "candy" ? CANDY : INFERENCE;
@@ -121,10 +126,10 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
           if (e.type === "result") result = e.result;
         }
         report[stage] = result;
-        yield { type: "stage.done", stage, score: result?.score ?? null };
+        yield { type: "stage.done", stage, score: result?.score ?? null, stamp: stamp(stage, result?.score ?? null) };
       } else {
         report.pelican = await runPelican(opts.target, { timeoutMs: Math.min(170_000, remaining - 2_000) });
-        yield { type: "stage.done", stage, score: null };
+        yield { type: "stage.done", stage, score: null, stamp: stamp(stage, null) };
       }
     } catch (e) {
       report.errors[stage] = (e as Error).message;

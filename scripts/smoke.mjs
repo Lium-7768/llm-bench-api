@@ -67,6 +67,18 @@ const checks = [
     },
   ],
   [
+    "没有解锁令牌进不了彩蛋",
+    async () => {
+      // 没配置 LLMBENCH_SECRET 时整个关闭（404），配置了时没有令牌被拒（403）
+      const res = await fetch(`${BASE}/api/v1/arena`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ protocol: "openai", model: "x", apiKey: "k", language: "python", tier: "bronze" }),
+      });
+      expect(res.status === 404 || res.status === 403, `HTTP ${res.status}`);
+    },
+  ],
+  [
     "跨域预检通过",
     async () => {
       const res = await fetch(`${BASE}/api/v1/check`, { method: "OPTIONS" });
