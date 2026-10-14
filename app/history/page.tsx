@@ -66,14 +66,23 @@ export default function HistoryPage() {
       <ul className="flex flex-col gap-2">
         {(history ?? []).map((r) =>
           hasError(r) ? (
-            // 报错的报告结果不完整：只展示，不能查看详情或删除
+            // 报错的报告结果不完整：不能查看详情，只能删除
             <li key={r.id}>
-              <Panel className="flex items-center gap-3 py-3 pr-4 pl-5 opacity-75">
-                <span className="truncate font-medium">{r.model}</span>
-                <Pill tone="fail">报错</Pill>
-                <span className="min-w-0 flex-1 truncate text-right text-xs text-readout" title={errorReason(r)}>
-                  {errorReason(r)}
-                </span>
+              <Panel className="flex items-center gap-2 pr-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-5 opacity-75">
+                  <span className="truncate font-medium">{r.model}</span>
+                  <Pill tone="fail">报错</Pill>
+                  <span className="min-w-0 flex-1 truncate text-right text-xs text-readout" title={errorReason(r)}>
+                    {errorReason(r)}
+                  </span>
+                </div>
+                <IconButton
+                  label="删除这条记录"
+                  tone="ghost"
+                  size="sm"
+                  icon={<Trash2 size={15} />}
+                  onClick={() => removeHistory(r.id)}
+                />
               </Panel>
             </li>
           ) : (

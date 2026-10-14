@@ -48,7 +48,7 @@ app/
     openapi/route.ts    GET  OpenAPI 3.1 描述
   page.tsx              检测页：启动台 → 运行中 → 报告
   compare/page.tsx      模型对比（只列没有报错的报告）
-  history/page.tsx      历史记录（正常报告可看详情，报错报告只展示）
+  history/page.tsx      历史记录（正常报告可看详情，报错报告只能删除）
   docs/page.tsx         API 接入文档
   layout.tsx, globals.css
 components/             前端组件
@@ -130,7 +130,7 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 - 三个状态：启动台（`idle`）→ 运行中（`running`）→ 报告（`done`），都在 `app/page.tsx`。
 - 接口配置存在 localStorage（`llmbench.config`），关闭「记住密钥」时密钥只存 sessionStorage。
 - 历史记录键名 `llmbench.reports.v2`，最多 60 份。报告结构有不兼容改动时换键名；小改动可以在 `storage.ts` 的 `migrate()` 里读取时转换（如 v0.3.0 的步骤 `colorblind` 已改名为 `inference`）。
-- 「报错」的定义见 `lib/web/format.ts` 的 `hasError()`：综合分为空、计分的步骤（指纹、基础、糖果）失败或被跳过、这些步骤里有题目调用失败、指纹检测无法判断。综合推理和鹈鹕不计分，它们失败只在对应卡片里显示，不算报告报错。报错的报告不进对比，历史里只展示、不能操作。
+- 「报错」的定义见 `lib/web/format.ts` 的 `hasError()`：综合分为空、计分的步骤（指纹、基础、糖果）失败或被跳过、这些步骤里有题目调用失败、指纹检测无法判断。综合推理和鹈鹕不计分，它们失败只在对应卡片里显示，不算报告报错。报错的报告不进对比；历史里不能查看详情，只能删除。
 
 ## 检测内容
 
