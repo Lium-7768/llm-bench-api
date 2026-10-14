@@ -1,4 +1,4 @@
-import type { ArenaLanguage, ArenaTier, ArenaTrack, ProblemVerdict } from "../types";
+import type { ArenaLanguage, ArenaTier, ArenaTrack, ProblemResult, ProblemVerdict } from "../types";
 
 /** 段位赛里前后端共用的常量。题目和测试只在服务端（problems.ts），不要从前端引用 */
 
@@ -13,8 +13,32 @@ export const TIER_LABEL: Record<ArenaTier, string> = {
   king: "王者",
 };
 
-/** 每档 3 题，答对 2 题晋级 */
-export const PASS_PER_TIER = 2;
+/** 每档的分值：越往上越难，分值按斐波那契增长 */
+export const TIER_WEIGHT: Record<ArenaTier, number> = {
+  bronze: 1,
+  silver: 2,
+  gold: 3,
+  platinum: 5,
+  diamond: 8,
+  king: 13,
+};
+
+/**
+ * 打分：每题满分是所在档位的分值。全部测试通过得满分；部分通过按通过比例得一半；其他得 0。
+ * 调用失败（error）和还没判完（pending）的题不计入。总分 = 得分 / 满分 × 100
+ */
+export function arenaScore(problems: ProblemResult[]): { score: number | null; best: ArenaTier | null } {
+  let earned = 0;
+  let total = 0;
+  for (const p of problems) {
+    if (!p.tier || p.verdict === "error" || p.verdict === "pending") continue;
+    const w = TIER_WEIGHT[p.tier];
+    total += w;
+    earned += p.verdict === "accepted" ? w : p.totalTests ? (w * 0.5 * p.passedTests) / p.totalTests : 0;
+  }
+  const solved = TIERS.filter((t) => problems.some((p) => p.tier === t && p.verdict === "accepted"));
+  return { score: total ? Math.round((earned / total) * 100) : null, best: solved.at(-1) ?? null };
+}
 
 export const LANGUAGE_LABEL: Record<ArenaLanguage, string> = {
   python: "Python",

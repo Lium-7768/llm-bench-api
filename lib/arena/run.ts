@@ -1,21 +1,21 @@
 import { channel } from "../channel";
 import { chatLong, UpstreamTimeout } from "../llm";
-import type { ArenaLanguage, ArenaTier, ArenaTrack, ProblemResult, Target, TierResult } from "../types";
+import type { ArenaCatalogItem, ArenaLanguage, ArenaTier, ArenaTrack, ProblemResult, Target } from "../types";
 import { assemble, type LogicProblem } from "./frontend/logic";
 import { frontendProblemsOf, logicTestsOf, type FrontendProblem } from "./frontend/problems";
 import type { UiProblem } from "./frontend/ui";
 import { judge, JudgeUnavailable, LANGUAGES } from "./judge";
-import { PASS_PER_TIER } from "./meta";
+import { TIERS } from "./meta";
 import { problemsOf, testsOf, type Problem, type TestCase } from "./problems";
 
 export type ArenaEvent =
-  | { type: "start"; tier: ArenaTier; problems: Array<{ id: string; title: string; tags: string[] }> }
+  | { type: "start"; problems: Array<{ id: string; tier: ArenaTier; title: string; tags: string[] }> }
   /** 模型交卷，开始判题 */
   | { type: "problem.code"; id: string; code: string }
   /** 前端赛道的 UI 题：页面和隐藏测试交给浏览器判定 */
   | { type: "problem.ui"; id: string; html: string; test: string }
   | { type: "problem.done"; result: ProblemResult }
-  | { type: "result"; result: TierResult; stamp?: string };
+  | { type: "result"; problems: ProblemResult[] };
 
 /** 整体时限：留出余量，避免函数被平台强制终止 */
 const BUDGET_MS = 285_000;
@@ -95,28 +95,43 @@ export function extractCode(text: string): string {
   return (open ? open[1] : t).trim();
 }
 
-export interface TierOptions {
+export interface RunOptions {
   target: Target;
   track: ArenaTrack;
   /** 前端赛道固定为 javascript */
   language: ArenaLanguage;
-  tier: ArenaTier;
+  /** 要跑的题目 id，同一赛道，最多 MAX_PER_RUN 道 */
+  ids: string[];
   signal?: AbortSignal;
 }
 
-/**
- * 跑一档：三题并发作答、判题，逐题产出事件，最后给出这一档的结果。
- * 前端赛道的 UI 题在服务端只拿到页面（verdict 为 pending），是否通过由浏览器判定后再算。
- */
-export async function* runTier(opts: TierOptions): AsyncGenerator<ArenaEvent> {
-  const started = Date.now();
-  const deadline = started + BUDGET_MS;
-  const problems: Array<Problem | FrontendProblem> =
-    opts.track === "frontend" ? frontendProblemsOf(opts.tier) : problemsOf(opts.tier);
+/** 一次请求最多跑几道题：并发作答，共用一次函数时限 */
+export const MAX_PER_RUN = 3;
+
+type AnyProblem = Problem | FrontendProblem;
+
+const problemsOfTrack = (track: ArenaTrack): AnyProblem[] =>
+  TIERS.flatMap((t): AnyProblem[] => (track === "frontend" ? frontendProblemsOf(t) : problemsOf(t)));
+
+/** 题目目录：只有标题和标签，不含题面和测试。每档第一道是默认选中的题 */
+export function catalogOf(track: ArenaTrack): ArenaCatalogItem[] {
+  return problemsOfTrack(track).map((p) => ({
+    id: p.id,
+    tier: p.tier,
+    title: p.title,
+    tags: p.tags,
+    kind: "kind" in p ? p.kind : "program",
+  }));
+}
+
+/** 跑指定的几道题：并发作答、判题，逐题产出事件，最后汇总 */
+export async function* runProblems(opts: RunOptions): AsyncGenerator<ArenaEvent> {
+  const deadline = Date.now() + BUDGET_MS;
+  const all = problemsOfTrack(opts.track);
+  const problems = opts.ids.map((id) => all.find((p) => p.id === id)).filter((p): p is AnyProblem => !!p);
   yield {
     type: "start",
-    tier: opts.tier,
-    problems: problems.map(({ id, title, tags }) => ({ id, title, tags })),
+    problems: problems.map(({ id, tier, title, tags }) => ({ id, tier, title, tags })),
   };
 
   const events = channel<ArenaEvent>();
@@ -130,35 +145,18 @@ export async function* runTier(opts: TierOptions): AsyncGenerator<ArenaEvent> {
               events.push({ type: "problem.ui", id: p.id, html, test: (p as UiProblem).test }),
             )
           : await solve(p, opts, deadline, onCode);
-      results.push(r);
-      events.push({ type: "problem.done", result: r });
+      results.push({ ...r, tier: p.tier });
+      events.push({ type: "problem.done", result: { ...r, tier: p.tier } });
     }),
   ).then(events.close);
   for await (const e of events) yield e;
 
-  const order = problems.map((p) => results.find((r) => r.id === p.id)!);
-  const accepted = order.filter((r) => r.verdict === "accepted").length;
-  const errored = order.filter((r) => r.verdict === "error");
-  const pending = order.filter((r) => r.verdict === "pending").length;
-  const passed = accepted >= PASS_PER_TIER;
-  // 已经确定没过（剩下的题全对也不够）时，调用失败不影响结论；UI 题还没判，按可能通过算
-  const undecided =
-    !passed && accepted + pending < PASS_PER_TIER && accepted + pending + errored.length >= PASS_PER_TIER;
-  const result: TierResult = {
-    track: opts.track,
-    tier: opts.tier,
-    language: opts.language,
-    passed,
-    problems: order,
-    durationMs: Date.now() - started,
-    ...(undecided && { error: errored[0].detail ?? "调用失败" }),
-  };
-  yield { type: "result", result };
+  yield { type: "result", problems: problems.map((p) => results.find((r) => r.id === p.id)!) };
 }
 
 async function solve(
   p: Problem,
-  opts: TierOptions,
+  opts: RunOptions,
   deadline: number,
   onCode: (code: string) => void,
 ): Promise<ProblemResult> {
@@ -205,7 +203,7 @@ async function judged(
 /** 前端赛道：逻辑题拼上隐藏测试交给 Judge0；UI 题只取出页面交给浏览器 */
 async function solveFrontend(
   p: FrontendProblem,
-  opts: TierOptions,
+  opts: RunOptions,
   deadline: number,
   onCode: (code: string) => void,
   onPage: (html: string) => void,

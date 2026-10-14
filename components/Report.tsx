@@ -5,7 +5,16 @@ import { motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { LANGUAGE_LABEL, TIER_LABEL } from "@/lib/arena/meta";
 import { CATEGORY_LABELS } from "@/lib/bank";
-import type { AnswerResult, BenchResult, CheckStatus, DetectResult, PelicanResult, Report, Stage } from "@/lib/types";
+import type {
+  AnswerResult,
+  ArenaResult,
+  BenchResult,
+  CheckStatus,
+  DetectResult,
+  PelicanResult,
+  Report,
+  Stage,
+} from "@/lib/types";
 import { ANIMATION_LABEL, FORMAT_HINT, FORMAT_LABEL, analysisOf } from "@/lib/svg";
 import { STATUS_LABEL, VERDICT_LABEL, formatMs, formatTime, protocolLabel } from "@/lib/web/format";
 import { EggEntry } from "./EggEntry";
@@ -89,6 +98,19 @@ export function SvgBadges({ result }: { result: Pick<PelicanResult, "svg" | "ana
 
 // ---------------------------------------------------------------- 报告
 
+/** 编程彩蛋的成绩：分数和解出的最高档位。改版前的结果没有分数，不显示 */
+function ArenaLine({ label, result }: { label: string; result?: ArenaResult }) {
+  if (result?.score === undefined) return null;
+  return (
+    <span>
+      {label} <strong className="font-display font-semibold text-violet tabular-nums">{result.score ?? "—"}</strong>
+      <span className="text-readout"> 分</span>
+      {result.best && <span className="ml-1.5 text-readout">（最高解出{TIER_LABEL[result.best]}）</span>}
+      {result.track !== "frontend" && <span className="ml-1 text-readout">{LANGUAGE_LABEL[result.language]}</span>}
+    </span>
+  );
+}
+
 export function ReportView({ report, actions }: { report: Report; actions?: ReactNode }) {
   const [open, setOpen] = useState<Stage | null>(null);
   const { detect, basic, candy, inference, pelican, errors } = report;
@@ -115,25 +137,10 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
               <p className="text-sm text-readout">
                 综合得分 = 指纹检测 30% + 基础测试 40% + 糖果测试 30%，综合推理和鹈鹕测试单独展示，不计分。
               </p>
-              {(report.arena || report.arenaFrontend) && (
+              {(report.arena?.score !== undefined || report.arenaFrontend?.score !== undefined) && (
                 <p className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm sm:justify-start">
-                  {report.arena && (
-                    <span>
-                      算法段位{" "}
-                      <strong className="font-display font-semibold text-violet">
-                        {report.arena.rank ? TIER_LABEL[report.arena.rank] : "未入段"}
-                      </strong>
-                      <span className="ml-1.5 text-readout">（{LANGUAGE_LABEL[report.arena.language]}）</span>
-                    </span>
-                  )}
-                  {report.arenaFrontend && (
-                    <span>
-                      前端段位{" "}
-                      <strong className="font-display font-semibold text-violet">
-                        {report.arenaFrontend.rank ? TIER_LABEL[report.arenaFrontend.rank] : "未入段"}
-                      </strong>
-                    </span>
-                  )}
+                  <ArenaLine label="算法" result={report.arena} />
+                  <ArenaLine label="前端" result={report.arenaFrontend} />
                 </p>
               )}
               <div className="mt-1 flex justify-center gap-2 empty:hidden sm:justify-start">

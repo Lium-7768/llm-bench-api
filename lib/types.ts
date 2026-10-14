@@ -223,6 +223,8 @@ export type ProblemVerdict =
 
 export interface ProblemResult {
   id: string;
+  /** 所属档位，决定分值 */
+  tier?: ArenaTier;
   title: string;
   /** program 完整程序；function 前端逻辑题（实现函数）；ui 前端 UI 题（code 是整个 HTML 页面） */
   kind?: "program" | "function" | "ui";
@@ -242,24 +244,26 @@ export interface ProblemResult {
   usage?: Usage;
 }
 
-export interface TierResult {
-  track?: ArenaTrack;
+/** 题目目录里的一项（不含题面和测试） */
+export interface ArenaCatalogItem {
+  id: string;
   tier: ArenaTier;
-  language: ArenaLanguage;
-  /** 答对 2 题及以上 */
-  passed: boolean;
-  problems: ProblemResult[];
-  durationMs: number;
-  /** 调用失败导致这一档无法判定，可以重试 */
-  error?: string;
+  title: string;
+  tags: string[];
+  kind: "program" | "function" | "ui";
 }
 
+/**
+ * 一次段位赛的结果。题目由用户任选（默认每档第一题），按档位分值打分：
+ * 全对得满分，部分测试通过按比例得一半，调用失败的题不计入。见 lib/arena/meta.ts 的 arenaScore
+ */
 export interface ArenaResult {
-  /** 旧结果没有这个字段，按 algo 处理 */
-  track?: ArenaTrack;
+  track: ArenaTrack;
   language: ArenaLanguage;
-  /** 通过的最高段位；一档都没过为 null */
-  rank: ArenaTier | null;
-  tiers: TierResult[];
+  /** 0-100；一题都没判出来时为 null */
+  score: number | null;
+  /** 解出的最高档位；一题都没解出为 null */
+  best: ArenaTier | null;
+  problems: ProblemResult[];
   startedAt: string;
 }
