@@ -2,11 +2,13 @@ import type { ArenaLanguage, ArenaTier, ProblemVerdict } from "../types";
 
 /** 段位赛里前后端共用的常量。题目和测试只在服务端（problems.ts），不要从前端引用 */
 
-export const TIERS: ArenaTier[] = ["bronze", "platinum", "diamond", "king"];
+export const TIERS: ArenaTier[] = ["bronze", "silver", "gold", "platinum", "diamond", "king"];
 
 export const TIER_LABEL: Record<ArenaTier, string> = {
   bronze: "青铜",
-  platinum: "铂金",
+  silver: "白银",
+  gold: "黄金",
+  platinum: "白金",
   diamond: "钻石",
   king: "王者",
 };

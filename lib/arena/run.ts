@@ -1,7 +1,7 @@
 import { channel } from "../channel";
-import { chatLong } from "../llm";
+import { chatLong, UpstreamTimeout } from "../llm";
 import type { ArenaLanguage, ArenaTier, ProblemResult, Target, TierResult } from "../types";
-import { judge, JudgeUnavailable, LANGUAGES, TIME_LIMIT_S } from "./judge";
+import { judge, JudgeUnavailable, LANGUAGES } from "./judge";
 import { PASS_PER_TIER } from "./meta";
 import { problemsOf, testsOf, type Problem } from "./problems";
 
@@ -27,7 +27,7 @@ export function promptOf(p: Problem, language: ArenaLanguage): string {
     "",
     "要求：",
     "- 写一个完整程序：从标准输入读取，向标准输出输出，不要输出提示语等多余内容。",
-    `- 运行环境 ${lang.runtime}，只能用标准库，不能联网。每组数据限时 ${TIME_LIMIT_S} 秒，会用多组隐藏数据测试。`,
+    `- 运行环境 ${lang.runtime}，只能用标准库，不能联网。每组数据限时 ${lang.limit} 秒（不含启动），会用多组隐藏数据测试。`,
     ...(lang.note ? [`- ${lang.note}`] : []),
     "- 只输出一个代码块。",
     "",
@@ -126,9 +126,14 @@ async function solve(
       messages: [{ role: "user", content: promptOf(p, opts.language) }],
       temperature: 0,
       maxTokens: opts.target.protocol === "anthropic" ? 8192 : undefined,
-      timeoutMs: Math.max(5_000, Math.min(200_000, deadline - Date.now() - JUDGE_MS)),
+      // 能给多少给多少（约 225 秒）：难题上思考型模型要想两三分钟
+      timeoutMs: Math.max(5_000, deadline - Date.now() - JUDGE_MS),
     });
   } catch (e) {
+    // 时限内没交卷算模型没做出来（和比赛一样）；连不上、HTTP 错误才算调用失败，可以重试
+    if (e instanceof UpstreamTimeout) {
+      return { ...base, verdict: "no_code", detail: `规定时间内没有交卷：${e.message}` };
+    }
     return { ...base, verdict: "error", detail: `模型调用失败：${(e as Error).message}` };
   }
 

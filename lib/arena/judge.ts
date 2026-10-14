@@ -17,7 +17,9 @@ interface Runtime {
   note: string;
   /** 空程序，用来测这个运行环境的启动耗时 */
   empty: string;
-  /** 交给 Judge0 的 CPU 时限，秒 */
+  /** 每组测试的运行时限（不含运行环境启动），秒。超时由我们按 Judge0 返回的用时判 */
+  limit: number;
+  /** 交给 Judge0 的 CPU 时限，秒：启动耗时 + 运行时限 + 余量，Go、Java 的编译也算在里面 */
   cpu: number;
 }
 
@@ -25,16 +27,19 @@ interface Runtime {
  * 公共实例上新版 Python、Node 的沙箱启动就要 2.3–2.8 秒（实测），旧版很快但语法太老（Python 3.8 不支持 list[int]，
  * Node 12 不支持 ?.）。所以选新版，每批额外提交一个空程序测启动耗时，判超时用「用时 − 启动耗时」。
  * Go 1.23 在公共实例繁忙时经常编译超时，用 1.18。
+ * 运行时限按语言放宽（常见的做法）：同样的算法，CPython 比 Java、Go 慢一个数量级。
  */
 export const LANGUAGES: Record<ArenaLanguage, Runtime> = {
-  python: { label: "Python", runtime: "Python 3.13", judge0: 109, note: "", empty: "pass", cpu: 6 },
+  python: { label: "Python", runtime: "Python 3.13", judge0: 109, note: "", empty: "pass", limit: 6, cpu: 10 },
   javascript: {
     label: "JavaScript",
     runtime: "Node.js 22（CommonJS）",
     judge0: 102,
     note: "用 require('fs').readFileSync(0, 'utf8') 读取全部输入。",
-    empty: "",
-    cpu: 6,
+    // 空字符串会被 Judge0 当作没传代码拒绝
+    empty: ";",
+    limit: 3,
+    cpu: 7,
   },
   java: {
     label: "Java",
@@ -42,6 +47,7 @@ export const LANGUAGES: Record<ArenaLanguage, Runtime> = {
     judge0: 91,
     note: "主类必须是 public class Main，不要写 package。",
     empty: "public class Main { public static void main(String[] a) {} }",
+    limit: 2,
     cpu: 4,
   },
   go: {
@@ -50,12 +56,10 @@ export const LANGUAGES: Record<ArenaLanguage, Runtime> = {
     judge0: 95,
     note: "使用 package main。",
     empty: "package main\nfunc main() {}",
+    limit: 2,
     cpu: 4,
   },
 };
-
-/** 每组测试的运行时限（不含运行环境启动），超时由我们按 Judge0 返回的用时判 */
-export const TIME_LIMIT_S = 2;
 
 export class JudgeUnavailable extends Error {}
 
@@ -64,6 +68,8 @@ export interface JudgeOutcome {
   passedTests: number;
   failedTest?: number;
   detail?: string;
+  /** 跑完的测试里最慢的一组用时（已扣除启动耗时） */
+  slowestMs?: number;
 }
 
 interface Submission {
@@ -136,9 +142,10 @@ export async function judge(
       }),
     },
     signal,
-  )) as Array<{ token?: string }>;
+  )) as Array<{ token?: string } & Record<string, unknown>>;
   const tokens = created.map((c) => c.token);
-  if (tokens.some((t) => !t)) throw new JudgeUnavailable("判题服务拒绝了提交");
+  const rejected = created.find((c) => !c.token);
+  if (rejected) throw new JudgeUnavailable(`判题服务拒绝了提交：${clip(JSON.stringify(rejected), 200)}`);
 
   let results: Submission[];
   for (;;) {
@@ -158,19 +165,26 @@ export async function judge(
   let passed = 0;
   let first: JudgeOutcome | undefined;
   results.forEach((s, i) => {
-    const outcome = classify(s, tests[i], startup);
+    const outcome = classify(s, tests[i], startup, lang.limit);
     if (!outcome) passed++;
     else first ??= { ...outcome, failedTest: i + 1, passedTests: 0 };
   });
-  return first ? { ...first, passedTests: passed } : { verdict: "accepted", passedTests: passed };
+  const ran = results.filter((s) => s.status_id === 3).map((s) => Number(s.time ?? 0) - startup);
+  const slowestMs = ran.length ? Math.max(0, Math.round(Math.max(...ran) * 1000)) : undefined;
+  return first ? { ...first, passedTests: passed, slowestMs } : { verdict: "accepted", passedTests: passed, slowestMs };
 }
 
-function classify(s: Submission, test: TestCase, startup: number): Omit<JudgeOutcome, "passedTests"> | null {
+function classify(
+  s: Submission,
+  test: TestCase,
+  startup: number,
+  limit: number,
+): Omit<JudgeOutcome, "passedTests"> | null {
   // 13 内部错误、14 执行格式错误：判题服务的问题，不算模型的错
   if (s.status_id === 13 || s.status_id === 14) throw new JudgeUnavailable("判题服务内部错误");
   if (s.status_id === 6) return { verdict: "compile_error", detail: clip(dec(s.compile_output)) };
-  if (s.status_id === 5 || Number(s.time ?? 0) - startup > TIME_LIMIT_S) {
-    return { verdict: "time_limit", detail: `超过 ${TIME_LIMIT_S} 秒` };
+  if (s.status_id === 5 || Number(s.time ?? 0) - startup > limit) {
+    return { verdict: "time_limit", detail: `超过 ${limit} 秒` };
   }
   if (s.status_id >= 7) {
     return { verdict: "runtime_error", detail: clip(dec(s.stderr) || dec(s.message)) };

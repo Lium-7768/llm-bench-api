@@ -57,6 +57,9 @@ export class UpstreamError extends Error {
   }
 }
 
+/** 上游在时限内没有答完（区别于连不上、HTTP 错误） */
+export class UpstreamTimeout extends UpstreamError {}
+
 const DEFAULT_TIMEOUT = 60_000;
 
 // ---------------------------------------------------------------- 地址与协议
@@ -272,7 +275,7 @@ async function withTimeout<T>(timeoutMs: number, fn: (signal: AbortSignal) => Pr
     return await fn(controller.signal);
   } catch (e) {
     if (controller.signal.aborted) {
-      throw new UpstreamError(0, `请求超时（${Math.round(timeoutMs / 1000)}s）`);
+      throw new UpstreamTimeout(0, `请求超时（${Math.round(timeoutMs / 1000)}s）`);
     }
     if (e instanceof UpstreamError) throw e;
     throw new UpstreamError(0, `无法连接上游：${(e as Error).message}`);

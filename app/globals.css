@@ -20,6 +20,10 @@
   --color-mint: #059669;
   --color-amber: #d97706;
   --color-rose: #e11d48;
+  /* 编程段位赛的段位色 */
+  --color-bronze: #b0602f;
+  --color-silver: #7b879f;
+  --color-gold: #c08a00;
 
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;

@@ -201,7 +201,7 @@ export interface Report {
 export type ArenaLanguage = "python" | "javascript" | "java" | "go";
 
 /** 段位从低到高 */
-export type ArenaTier = "bronze" | "platinum" | "diamond" | "king";
+export type ArenaTier = "bronze" | "silver" | "gold" | "platinum" | "diamond" | "king";
 
 /**
  * accepted 全部通过；wrong_answer 答案错误；time_limit 超时；compile_error 编译失败；
@@ -224,6 +224,8 @@ export interface ProblemResult {
   code: string;
   /** 模型作答用时 */
   latencyMs: number;
+  /** 跑完的测试里最慢的一组程序用时 */
+  slowestMs?: number;
   usage?: Usage;
 }
 

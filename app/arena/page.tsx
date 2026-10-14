@@ -1,6 +1,6 @@
 "use client";
 
-import { Dices, Play, RotateCcw } from "lucide-react";
+import { Check, Dices, Play, RotateCcw, Timer, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { IconButton, Modal, Panel, Pill, cx } from "@/components/ui";
@@ -15,17 +15,29 @@ import { patchHistory } from "@/lib/web/storage";
 
 /** 每档的颜色：只有王者用光谱 */
 const TIER_STYLE: Record<ArenaTier, { cap: string; text: string }> = {
-  bronze: { cap: "bg-amber", text: "text-amber" },
+  bronze: { cap: "bg-bronze", text: "text-bronze" },
+  silver: { cap: "bg-silver", text: "text-silver" },
+  gold: { cap: "bg-gold", text: "text-gold" },
   platinum: { cap: "bg-cyan", text: "text-cyan" },
   diamond: { cap: "bg-blue", text: "text-blue" },
   king: { cap: "spectrum-bg", text: "text-violet" },
 };
 
-/** 台阶从左到右一级比一级高 */
-const STEP_HEIGHT = ["sm:min-h-[17rem]", "sm:min-h-[20rem]", "sm:min-h-[23rem]", "sm:min-h-[26rem]"];
+/** 台阶从左到右一级比一级高（类名要写全，Tailwind 才能扫描到） */
+const STEP_HEIGHT = [
+  "lg:min-h-[13rem]",
+  "lg:min-h-[15.5rem]",
+  "lg:min-h-[18rem]",
+  "lg:min-h-[20.5rem]",
+  "lg:min-h-[23rem]",
+  "lg:min-h-[25.5rem]",
+];
 
 type ProblemState = { id: string; title: string; tags: string[]; phase: "writing" | "judging" | "done" } & Partial<
-  Pick<ProblemResult, "verdict" | "passedTests" | "totalTests" | "failedTest" | "detail" | "code" | "latencyMs">
+  Pick<
+    ProblemResult,
+    "verdict" | "passedTests" | "totalTests" | "failedTest" | "detail" | "code" | "latencyMs" | "slowestMs"
+  >
 >;
 
 interface TierState {
@@ -214,8 +226,8 @@ export default function ArenaPage() {
         </motion.p>
       )}
 
-      {/* 台阶：桌面端四列一级比一级高，手机上竖排 */}
-      <ol className="grid gap-3 sm:grid-cols-4 sm:items-end">
+      {/* 台阶：宽屏六列一级比一级高，窄屏竖排 */}
+      <ol className="grid gap-2.5 lg:grid-cols-6 lg:items-end">
         {TIERS.map((tier, i) => {
           const s = tiers[tier];
           const lit = s.status !== "pending";
@@ -223,13 +235,13 @@ export default function ArenaPage() {
             <li key={tier} className={cx("flex flex-col", STEP_HEIGHT[i])}>
               <Panel
                 className={cx(
-                  "flex flex-1 flex-col overflow-hidden rounded-2xl transition-opacity sm:rounded-b-none",
+                  "flex flex-1 flex-col overflow-hidden rounded-2xl transition-opacity lg:rounded-b-none",
                   !lit && "opacity-55",
                 )}
               >
                 <div className={cx("h-1.5", lit ? TIER_STYLE[tier].cap : "bg-line")} />
-                <div className="flex items-baseline justify-between gap-2 px-4 pt-4 pb-3">
-                  <h2 className={cx("font-display text-xl font-semibold", lit ? TIER_STYLE[tier].text : "text-faint")}>
+                <div className="flex items-baseline justify-between gap-2 px-3.5 pt-3.5 pb-3">
+                  <h2 className={cx("font-display text-lg font-semibold", lit ? TIER_STYLE[tier].text : "text-faint")}>
                     {TIER_LABEL[tier]}
                   </h2>
                   <span className="text-xs text-readout">
@@ -244,26 +256,30 @@ export default function ArenaPage() {
                     }
                   </span>
                 </div>
-                <ul className="mt-auto flex flex-col gap-1 px-2 pb-2">
+                <ul className="mt-auto flex flex-col gap-0.5 px-1.5 pb-1.5">
                   {s.problems.map((p) => (
                     <li key={p.id}>
                       <button
                         type="button"
                         disabled={!p.code && p.phase !== "done"}
                         onClick={() => setOpen(p)}
-                        className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition enabled:hover:bg-tint"
+                        aria-label={`${p.title}：${p.phase === "done" ? VERDICT_LABEL[p.verdict!] : p.phase === "writing" ? "写代码中" : "判题中"}`}
+                        className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition enabled:hover:bg-tint"
                       >
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{p.title}</span>
                           <span className="block truncate text-xs text-faint">{p.tags.join("、")}</span>
                         </span>
                         {p.phase === "done" ? (
-                          <Pill tone={VERDICT_TONE(p.verdict)}>{VERDICT_LABEL[p.verdict!]}</Pill>
+                          <VerdictMark verdict={p.verdict!} />
                         ) : (
-                          <span className="flex items-center gap-1.5 text-xs text-readout">
-                            <span className="size-1.5 rounded-full bg-violet motion-safe:animate-pulse" />
-                            {p.phase === "writing" ? "写代码" : "判题中"}
-                          </span>
+                          <span
+                            title={p.phase === "writing" ? "写代码中" : "判题中"}
+                            className={cx(
+                              "size-2 shrink-0 rounded-full motion-safe:animate-pulse",
+                              p.phase === "writing" ? "bg-violet" : "bg-cyan",
+                            )}
+                          />
                         )}
                       </button>
                     </li>
@@ -288,6 +304,9 @@ export default function ArenaPage() {
                   </span>
                 )}
                 {!!open.latencyMs && <span className="text-readout">作答用时 {formatMs(open.latencyMs)}</span>}
+                {open.slowestMs !== undefined && (
+                  <span className="text-readout">程序最慢一组 {formatMs(open.slowestMs)}</span>
+                )}
               </div>
             )}
             {open.detail && (
@@ -296,7 +315,7 @@ export default function ArenaPage() {
               </pre>
             )}
             {open.code && (
-              <pre className="max-h-[55vh] overflow-auto rounded-xl bg-tint p-4 font-mono text-xs leading-relaxed">
+              <pre className="max-h-[55vh] overflow-auto rounded-xl bg-tint p-4 font-mono text-xs leading-relaxed [font-variant-ligatures:none]">
                 {open.code}
               </pre>
             )}
@@ -304,5 +323,24 @@ export default function ArenaPage() {
         )}
       </Modal>
     </div>
+  );
+}
+
+/** 台阶里每题的结论：窄列放不下文字，用图标，悬停和读屏给出文字 */
+function VerdictMark({ verdict }: { verdict: ProblemResult["verdict"] }) {
+  const Icon = verdict === "accepted" ? Check : verdict === "time_limit" ? Timer : X;
+  return (
+    <span
+      title={VERDICT_LABEL[verdict]}
+      className={cx(
+        "grid size-5 shrink-0 place-items-center rounded-full",
+        verdict === "accepted" && "bg-mint/12 text-mint",
+        verdict === "time_limit" && "bg-amber/12 text-amber",
+        verdict === "error" && "bg-tint text-readout",
+        !["accepted", "time_limit", "error"].includes(verdict) && "bg-rose/12 text-rose",
+      )}
+    >
+      <Icon size={12} strokeWidth={3} />
+    </span>
   );
 }

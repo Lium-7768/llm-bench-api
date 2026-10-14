@@ -1,12 +1,14 @@
 import type { ArenaTier } from "../types";
+import { HARD_PROBLEMS } from "./hard";
 import { TIERS } from "./meta";
+import { int, lines, nums, rng } from "./util";
 
 /**
  * 编程彩蛋的题库：竞赛格式，模型写完整程序，从标准输入读、向标准输出写，四种语言共用同一组测试。
  * 题目全部原创。隐藏测试由固定种子生成，期望输出由参考解算出，样例输出也来自参考解，避免题面和测试对不上。
  * 改题目、测试或参考解后递增 ARENA_VERSION。
  */
-export const ARENA_VERSION = "2026.10.1";
+export const ARENA_VERSION = "2026.10.2";
 
 export interface Problem {
   id: string;
@@ -16,31 +18,13 @@ export interface Problem {
   /** 题面，不含样例（样例由 sample 和参考解自动补上） */
   statement: string;
   sample: string;
-  /** 王者档给出的「祖传代码」：Python 写的、带 bug 的实现 */
+  /** 白金档给出的「祖传代码」：Python 写的、带 bug 的实现 */
   legacy?: string;
   /** 参考解：输入全文 → 标准输出 */
   solve: (input: string) => string;
   /** 隐藏测试的输入 */
   inputs: (rand: () => number) => string[];
 }
-
-// ---------------------------------------------------------------- 工具
-
-/** mulberry32：同一种子得到同一串随机数 */
-function rng(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const int = (rand: () => number, lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
-const nums = (input: string) => input.split(/\s+/).filter(Boolean).map(Number);
-const lines = (input: string) => input.replace(/\r/g, "").split("\n");
 
 // ---------------------------------------------------------------- 题目
 
@@ -134,10 +118,10 @@ const PROBLEMS: Problem[] = [
     },
   },
 
-  // ---------- 铂金：哈希表、排序、双指针 ----------
+  // ---------- 白银：哈希表、排序、双指针 ----------
   {
-    id: "platinum-pairs",
-    tier: "platinum",
+    id: "silver-pairs",
+    tier: "silver",
     title: "两数之和计数",
     tags: ["哈希表"],
     statement: `第一行两个整数 n 和 k（2 ≤ n ≤ 100000，|k| ≤ 2×10^9），第二行 n 个整数 a1…an（|ai| ≤ 10^9）。
@@ -171,8 +155,8 @@ const PROBLEMS: Problem[] = [
     },
   },
   {
-    id: "platinum-intervals",
-    tier: "platinum",
+    id: "silver-intervals",
+    tier: "silver",
     title: "合并区间",
     tags: ["排序"],
     statement: `第一行一个整数 n（1 ≤ n ≤ 100000），接下来 n 行，每行两个整数 l r（0 ≤ l ≤ r ≤ 10^9），表示闭区间 [l, r]。
@@ -213,8 +197,8 @@ const PROBLEMS: Problem[] = [
     },
   },
   {
-    id: "platinum-window",
-    tier: "platinum",
+    id: "silver-window",
+    tier: "silver",
     title: "最长不重复片段",
     tags: ["双指针"],
     statement: `输入一行字符串（长度 1 到 100000），由 ASCII 码 33 到 126 的可见字符组成，不含空格。
@@ -254,10 +238,10 @@ const PROBLEMS: Problem[] = [
     },
   },
 
-  // ---------- 钻石：动态规划、图 ----------
+  // ---------- 黄金：动态规划、图 ----------
   {
-    id: "diamond-maze",
-    tier: "diamond",
+    id: "gold-maze",
+    tier: "gold",
     title: "迷宫最短路",
     tags: ["图", "BFS"],
     statement: `第一行两个整数 R C（1 ≤ R, C ≤ 300），接下来 R 行，每行 C 个字符，表示迷宫：
@@ -335,8 +319,8 @@ const PROBLEMS: Problem[] = [
     },
   },
   {
-    id: "diamond-coins",
-    tier: "diamond",
+    id: "gold-coins",
+    tier: "gold",
     title: "凑零钱的方法数",
     tags: ["动态规划"],
     statement: `第一行两个整数 n 和 amount（1 ≤ n ≤ 100，0 ≤ amount ≤ 10000），第二行 n 个互不相同的正整数，是硬币的面值（不超过 10000）。
@@ -375,8 +359,8 @@ amount 为 0 时有 1 种方法（什么都不选）。
     },
   },
   {
-    id: "diamond-courses",
-    tier: "diamond",
+    id: "gold-courses",
+    tier: "gold",
     title: "选课顺序",
     tags: ["图", "拓扑排序"],
     statement: `有 n 门课，编号 1 到 n。第一行两个整数 n 和 m（1 ≤ n ≤ 100000，0 ≤ m ≤ 200000），
@@ -457,10 +441,10 @@ amount 为 0 时有 1 种方法（什么都不选）。
     },
   },
 
-  // ---------- 王者：祖传 bug ----------
+  // ---------- 白金：祖传 bug ----------
   {
-    id: "king-dijkstra",
-    tier: "king",
+    id: "platinum-dijkstra",
+    tier: "platinum",
     title: "祖传最短路",
     tags: ["图", "最短路", "修 bug"],
     statement: `n 个路口、m 条双向道路。第一行两个整数 n 和 m（1 ≤ n ≤ 100000，0 ≤ m ≤ 200000），
@@ -561,8 +545,8 @@ main()`,
     },
   },
   {
-    id: "king-lis",
-    tier: "king",
+    id: "platinum-lis",
+    tier: "platinum",
     title: "祖传递增子序列",
     tags: ["动态规划", "二分", "修 bug"],
     statement: `第一行一个整数 n（1 ≤ n ≤ 100000），第二行 n 个整数（绝对值不超过 10^9）。
@@ -619,8 +603,8 @@ main()`,
     },
   },
   {
-    id: "king-knapsack",
-    tier: "king",
+    id: "platinum-knapsack",
+    tier: "platinum",
     title: "祖传背包",
     tags: ["动态规划", "修 bug"],
     statement: `n 件物品，每件最多选一次。第一行两个整数 n 和 W（1 ≤ n ≤ 100，0 ≤ W ≤ 10000），
@@ -672,7 +656,7 @@ main()`,
 
 export function problemsOf(tier: ArenaTier): Problem[] {
   if (!TIERS.includes(tier)) return [];
-  return PROBLEMS.filter((p) => p.tier === tier);
+  return [...PROBLEMS, ...HARD_PROBLEMS].filter((p) => p.tier === tier);
 }
 
 export interface TestCase {
