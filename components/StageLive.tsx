@@ -56,7 +56,7 @@ export function StageLive({ plan, live, elapsed }: { plan: StagePlan; live: Live
       <FlowBar value={plan.total ? done / plan.total : 0} color={info.hex} />
 
       {plan.id === "detect" && <DetectLive plan={plan} checks={live.checks} />}
-      {(plan.id === "basic" || plan.id === "candy" || plan.id === "colorblind") && (
+      {(plan.id === "basic" || plan.id === "candy" || plan.id === "inference") && (
         <AnswersLive plan={plan} answers={live.answers} />
       )}
       {plan.id === "pelican" && <PelicanLive result={live.pelican} />}

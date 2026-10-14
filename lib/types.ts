@@ -143,13 +143,13 @@ export type Envelope<T> =
  * detect      指纹检测：中转站有没有换模型、吞指令、假流式
  * basic       基础测试：推理、阅读、代码、知识、指令遵循
  * candy       糖果测试：改过条件的熟题、不存在的文献，测幻觉
- * colorblind  综合推理：知识 + 多步反证 + 抗诱导的复合题，单独成步
+ * inference  综合推理：知识 + 多步反证 + 抗诱导的复合题，单独成步
  * pelican     鹈鹕测试：画一只骑自行车的鹈鹕，不计分
  *
  * 前四步都会产出得分，但综合分只取 指纹 30% + 基础 40% + 糖果 30%；
- * colorblind 单独展示，不计入综合分（2026.10.3 起）。
+ * inference 单独展示，不计入综合分（2026.10.3 起）。
  */
-export type Stage = "detect" | "basic" | "candy" | "colorblind" | "pelican";
+export type Stage = "detect" | "basic" | "candy" | "inference" | "pelican";
 
 /** 一次全面检测的完整报告 */
 export interface Report {
@@ -166,7 +166,7 @@ export interface Report {
   basic?: BenchResult;
   candy?: BenchResult;
   /** 综合推理测试结果，独立于综合分 */
-  colorblind?: BenchResult;
+  inference?: BenchResult;
   pelican?: PelicanResult;
   /** 某一步整体失败或被跳过的原因 */
   errors: Partial<Record<Stage, string>>;

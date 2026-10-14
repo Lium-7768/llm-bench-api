@@ -1,20 +1,18 @@
-import { ALL_CATEGORIES, selectQuestions } from "./bank";
+import {
+  BASIC_CATEGORIES as BASIC,
+  CANDY_CATEGORIES as CANDY,
+  INFERENCE_CATEGORIES as INFERENCE,
+  selectQuestions,
+} from "./bank";
 import { runBench } from "./bench";
 import { channel } from "./channel";
 import { DETECT_CHECKS, runDetect } from "./detect";
 import { hostOf } from "./llm";
 import { PELICAN_PROMPT, runPelican } from "./pelican";
-import type { AnswerResult, BenchResult, Category, CheckResult, Report, Stage, Target } from "./types";
+import type { AnswerResult, BenchResult, CheckResult, Report, Stage, Target } from "./types";
 
 /** 执行顺序 */
-export const ALL_STAGES: Stage[] = ["detect", "basic", "candy", "colorblind", "pelican"];
-
-/** 糖果测试的题目 */
-const CANDY: Category[] = ["hallucination"];
-/** 综合推理单独成步，不计入基础/糖果 */
-const INFERENCE: Category[] = ["inference"];
-/** 基础测试的题目：除糖果和综合推理维度外的全部 */
-const BASIC: Category[] = ALL_CATEGORIES.filter((c) => !CANDY.includes(c) && !INFERENCE.includes(c));
+export const ALL_STAGES: Stage[] = ["detect", "basic", "candy", "inference", "pelican"];
 
 /** 综合分权重；鹈鹕没有标准答案、综合推理单独展示，都不计分 */
 const WEIGHTS: Partial<Record<Stage, number>> = { detect: 0.3, basic: 0.4, candy: 0.3 };
@@ -44,7 +42,7 @@ export interface StagePlan {
 export type CheckEvent =
   | { type: "start"; stages: StagePlan[]; pelicanPrompt: string }
   | { type: "stage.start"; stage: Stage }
-  | { type: "answer"; stage: "basic" | "candy" | "colorblind"; done: number; total: number; answer: AnswerResult }
+  | { type: "answer"; stage: "basic" | "candy" | "inference"; done: number; total: number; answer: AnswerResult }
   | { type: "check"; stage: "detect"; check: CheckResult }
   | { type: "stage.done"; stage: Stage; score: number | null }
   | { type: "stage.error"; stage: Stage; message: string }
@@ -73,7 +71,7 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
 
   const basicQuestions = selectQuestions({ categories: BASIC, limit: opts.limit, seed });
   const candyQuestions = selectQuestions({ categories: CANDY, seed });
-  const colorblindQuestions = selectQuestions({ categories: INFERENCE, seed });
+  const inferenceQuestions = selectQuestions({ categories: INFERENCE, seed });
   const asItems = (qs: typeof basicQuestions) => qs.map((q) => ({ id: q.id, label: q.prompt }));
   const plans: Record<Stage, StagePlan> = {
     detect: {
@@ -83,7 +81,7 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
     },
     basic: { id: "basic", total: basicQuestions.length, items: asItems(basicQuestions) },
     candy: { id: "candy", total: candyQuestions.length, items: asItems(candyQuestions) },
-    colorblind: { id: "colorblind", total: colorblindQuestions.length, items: asItems(colorblindQuestions) },
+    inference: { id: "inference", total: inferenceQuestions.length, items: asItems(inferenceQuestions) },
     pelican: { id: "pelican", total: 1, items: [{ id: "pelican", label: PELICAN_PROMPT }] },
   };
 
@@ -107,7 +105,7 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
         for await (const check of events) yield { type: "check", stage, check };
         report.detect = await task;
         yield { type: "stage.done", stage, score: report.detect.score };
-      } else if (stage === "basic" || stage === "candy" || stage === "colorblind") {
+      } else if (stage === "basic" || stage === "candy" || stage === "inference") {
         let result: BenchResult | undefined;
         const categories = stage === "basic" ? BASIC : stage === "candy" ? CANDY : INFERENCE;
         for await (const e of runBench({
@@ -116,6 +114,8 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
           categories,
           // 只有基础测试受 limit 限制；糖果和综合推理总是全做
           limit: stage === "basic" ? opts.limit : undefined,
+          // 综合推理要写一段推理，思考型模型实测要两分多钟：放宽单题时限并走流式
+          ...(stage === "inference" && { stream: true, timeoutMs: Math.max(opts.timeoutMs ?? 0, 150_000) }),
           budgetMs: remaining,
         })) {
           if (e.type === "answer") yield { type: "answer", stage, done: e.done, total: e.total, answer: e.answer };

@@ -66,10 +66,26 @@ const HISTORY_KEY = "llmbench.reports.v2";
 const HISTORY_EVENT = "llmbench:history";
 const MAX_ITEMS = 60;
 
+/** v0.3.0 的综合推理步骤叫 colorblind，读取旧报告时改成 inference，否则界面找不到这一步 */
+function migrate(r: Report): Report {
+  const legacy = r as Report & { colorblind?: Report["inference"] };
+  if (!legacy.stages.includes("colorblind" as never)) return r;
+  const { colorblind, ...rest } = legacy;
+  const errors = { ...rest.errors } as Record<string, string>;
+  if (errors.colorblind) errors.inference = errors.colorblind;
+  delete errors.colorblind;
+  return {
+    ...rest,
+    inference: rest.inference ?? colorblind,
+    stages: rest.stages.map((s) => ((s as string) === "colorblind" ? "inference" : s)),
+    errors,
+  };
+}
+
 export function loadHistory(): Report[] {
   try {
     const items = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
-    return Array.isArray(items) ? items : [];
+    return Array.isArray(items) ? items.map(migrate) : [];
   } catch {
     return [];
   }
@@ -110,7 +126,7 @@ export function importHistory(items: unknown): number {
   );
   const existing = loadHistory();
   const ids = new Set(existing.map((h) => h.id));
-  const fresh = valid.filter((h) => !ids.has(h.id));
+  const fresh = valid.filter((h) => !ids.has(h.id)).map(migrate);
   writeHistory([...fresh, ...existing].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, MAX_ITEMS));
   return fresh.length;
 }

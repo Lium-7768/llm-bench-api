@@ -1,4 +1,4 @@
-import { chat, hostOf } from "./llm";
+import { chatLong, hostOf } from "./llm";
 import type { PelicanResult, Target } from "./types";
 
 export const PELICAN_PROMPT = "Generate an SVG of a pelican riding a bicycle. Output only the SVG code, nothing else.";
@@ -11,7 +11,8 @@ export async function runPelican(
   const startedAt = new Date();
   const prompt = opts.prompt?.trim() || PELICAN_PROMPT;
 
-  const res = await chat(target, {
+  // SVG 很长，生成要一两分钟，用流式避免被中转站按空闲连接断开
+  const res = await chatLong(target, {
     messages: [{ role: "user", content: prompt }],
     temperature: 0.4,
     maxTokens: target.protocol === "anthropic" ? 8192 : undefined,

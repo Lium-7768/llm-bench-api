@@ -3,7 +3,7 @@
 import { Eye, EyeOff, ListRestart, LoaderCircle } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { QUESTIONS } from "@/lib/bank";
+import { BASIC_CATEGORIES, QUESTIONS } from "@/lib/bank";
 import { PRESETS, PROTOCOL_LABELS } from "@/lib/presets";
 import type { Protocol } from "@/lib/types";
 import { postApi } from "@/lib/web/api";
@@ -13,7 +13,7 @@ import { Field, IconButton, cx, inputClass } from "./ui";
 
 const PROTOCOLS = Object.keys(PROTOCOL_LABELS) as Protocol[];
 const PROTOCOL_SHORT: Record<Protocol, string> = { openai: "OpenAI 兼容", anthropic: "Anthropic", gemini: "Gemini" };
-const BASIC_COUNT = QUESTIONS.filter((q) => q.category !== "hallucination").length;
+const BASIC_COUNT = QUESTIONS.filter((q) => BASIC_CATEGORIES.includes(q.category)).length;
 
 /** 被测接口配置：服务商、协议、地址、密钥、模型、题量 */
 export function ConfigPanel() {

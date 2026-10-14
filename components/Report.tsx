@@ -47,7 +47,7 @@ export function PelicanImage({ svg, className }: { svg: string | null; className
 
 export function ReportView({ report, actions }: { report: Report; actions?: ReactNode }) {
   const [open, setOpen] = useState<Stage | null>(null);
-  const { detect, basic, candy, colorblind, pelican, errors } = report;
+  const { detect, basic, candy, inference, pelican, errors } = report;
 
   return (
     <div className="flex flex-col gap-5">
@@ -69,7 +69,7 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
               </p>
               <h1 className="font-display text-2xl font-semibold break-all sm:text-3xl">{report.model}</h1>
               <p className="text-sm text-readout">
-                综合得分 = 指纹检测 30% + 基础测试 40% + 糖果测试 30%，鹈鹕测试不计分。
+                综合得分 = 指纹检测 30% + 基础测试 40% + 糖果测试 30%，综合推理和鹈鹕测试单独展示，不计分。
               </p>
               {actions && <div className="mt-1 flex justify-center gap-2 sm:justify-start">{actions}</div>}
             </div>
@@ -83,12 +83,13 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
         </p>
       ))}
 
-      {/* 按容器宽度排列：页面里 4 列，弹窗里 2 列 */}
+      {/* 按容器宽度排列：页面里计分的步骤一行、不计分的一行，弹窗里 2 列 */}
       <div className="@container">
-        <div className="grid gap-4 @xl:grid-cols-2 @5xl:grid-cols-4">
+        <div className="grid gap-4 @xl:grid-cols-2 @5xl:grid-cols-6">
           {report.stages.map((stage, i) => (
             <motion.div
               key={stage}
+              className={tileSpan(report.stages, i)}
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
@@ -110,11 +111,11 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
                     </div>
                   </>
                 )}
-                {(stage === "basic" || stage === "candy" || stage === "colorblind") && report[stage] && (
+                {(stage === "basic" || stage === "candy" || stage === "inference") && report[stage] && (
                   <BenchTile result={report[stage]!} detailed={stage === "basic"} />
                 )}
                 {stage === "pelican" && pelican && (
-                  <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border border-line">
+                  <div className="mx-auto grid aspect-[4/3] w-full max-w-sm place-items-center overflow-hidden rounded-2xl border border-line">
                     <PelicanImage svg={pelican.svg} />
                   </div>
                 )}
@@ -153,13 +154,13 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
         {candy && <BenchDetail result={candy} />}
       </Modal>
       <Modal
-        open={open === "colorblind"}
+        open={open === "inference"}
         onClose={() => setOpen(null)}
         title="综合推理明细"
-        icon={<StageIcon stage="colorblind" />}
+        icon={<StageIcon stage="inference" />}
         wide
       >
-        {colorblind && <BenchDetail result={colorblind} />}
+        {inference && <BenchDetail result={inference} />}
       </Modal>
       <Modal
         open={open === "pelican"}
@@ -191,6 +192,22 @@ function BenchTile({ result, detailed }: { result: BenchResult; detailed: boolea
             </div>
           ))}
         </div>
+      ) : result.answers.length <= 2 ? (
+        // 题少时方块会被拉得很大，直接摘录回答更有信息量
+        <ul className="mt-auto flex flex-col gap-2">
+          {result.answers.map((a) => (
+            <li key={a.questionId} className="flex flex-col gap-1.5 rounded-xl bg-tint px-3.5 py-3">
+              <span className="self-start">
+                <Pill tone={a.errored ? "muted" : a.passed ? "pass" : "fail"}>
+                  {a.errored ? "调用失败" : a.passed ? "答对" : "答错"}
+                </Pill>
+              </span>
+              <p className="line-clamp-3 text-xs leading-relaxed text-readout">
+                {(a.errored ? a.reason : a.output?.replace(/[*#`]/g, "")) || "没有回答"}
+              </p>
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="mt-auto grid grid-cols-6 gap-1.5">
           {result.answers.map((a) => (
@@ -220,6 +237,20 @@ const DOT: Record<CheckStatus, string> = {
   unsupported: "bg-faint/60",
   error: "bg-faint/60",
 };
+
+const UNSCORED: Stage[] = ["inference", "pelican"];
+const SPAN_WIDE = ["", "@5xl:col-span-6", "@5xl:col-span-3", "@5xl:col-span-2"];
+
+/**
+ * 宽屏 6 列：计分的步骤（指纹、基础、糖果）排一行，不计分的（综合推理、鹈鹕）排一行，各自均分整行；
+ * 2 列时数量为奇数，最后一张占满整行，避免落单。
+ */
+function tileSpan(stages: Stage[], i: number): string {
+  const unscored = UNSCORED.includes(stages[i]);
+  const row = stages.filter((s) => UNSCORED.includes(s) === unscored).length;
+  const lastOdd = i === stages.length - 1 && stages.length % 2 === 1;
+  return cx(SPAN_WIDE[Math.min(row, 3)], lastOdd && "@xl:col-span-2");
+}
 
 function Tile({
   stage,

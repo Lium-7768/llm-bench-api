@@ -257,7 +257,8 @@ const FAMILIES: Array<[string, RegExp]> = [
   ["qwen", /qwen|通义|千问|阿里/i],
   ["doubao", /doubao|豆包|字节|bytedance/i],
   ["xai", /grok|xai/i],
-  ["zhipu", /glm|智谱|zhipu/i],
+  // Z.ai 是智谱的海外品牌
+  ["zhipu", /glm|智谱|zhipu|z\.ai/i],
   ["minimax", /minimax|abab/i],
   ["meta", /llama/i],
   ["mistral", /mistral|mixtral/i],
@@ -270,7 +271,7 @@ export function familyOf(text: string): string {
   return FAMILIES.find(([, re]) => re.test(text))?.[0] ?? "";
 }
 
-/** 同一模型的不同写法：忽略大小写、厂商前缀和日期后缀 */
+/** 同一模型的不同写法：忽略大小写、厂商前缀（`vendor/`、中转站常加的 `zai_` 这类）和日期后缀 */
 function sameModel(requested: string, echoed: string): boolean {
   const norm = (s: string) =>
     s
@@ -279,7 +280,8 @@ function sameModel(requested: string, echoed: string): boolean {
       .replace(/[-_]?\d{4}-?\d{2}-?\d{2}$/, "");
   const a = norm(requested);
   const b = norm(echoed);
-  return a === b || a.startsWith(b) || b.startsWith(a);
+  const prefixed = (long: string, short: string) => long.endsWith("_" + short) || long.endsWith(":" + short);
+  return a === b || a.startsWith(b) || b.startsWith(a) || prefixed(a, b) || prefixed(b, a);
 }
 
 function truncate(s: string, n = 60): string {

@@ -1,6 +1,6 @@
 import { BANK_VERSION, selectQuestions } from "./bank";
 import { channel } from "./channel";
-import { chat, hostOf } from "./llm";
+import { chat, chatLong, hostOf } from "./llm";
 import { aggregate, judge, totalScore } from "./scoring";
 import type { AnswerResult, BenchResult, Category, Question, Target } from "./types";
 
@@ -14,6 +14,8 @@ export interface BenchOptions {
   concurrency?: number;
   /** 单题超时 */
   timeoutMs?: number;
+  /** 用流式取回答：适合需要长篇推理的题，避免非流式长时间无数据被中转站断开 */
+  stream?: boolean;
   /** 整体时限：超出后剩余题目不再执行，避免被平台强制终止 */
   budgetMs?: number;
   /** 调用方断开时停止 */
@@ -116,7 +118,7 @@ export async function runBenchToEnd(opts: BenchOptions): Promise<BenchResult> {
 async function answer(q: Question, opts: BenchOptions, timeoutMs: number): Promise<AnswerResult> {
   const started = Date.now();
   try {
-    const res = await chat(opts.target, {
+    const res = await (opts.stream ? chatLong : chat)(opts.target, {
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: q.prompt }],
       temperature: opts.temperature ?? 0,

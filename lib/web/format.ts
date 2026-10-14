@@ -1,5 +1,5 @@
 import { PROTOCOL_LABELS } from "@/lib/presets";
-import type { CheckStatus, DetectResult, Protocol, Report } from "@/lib/types";
+import type { CheckStatus, DetectResult, Protocol, Report, Stage } from "@/lib/types";
 
 export function formatMs(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -38,26 +38,28 @@ export const VERDICT_LABEL: Record<DetectResult["verdict"], string> = {
   inconclusive: "无法判断",
 };
 
+/** 计入综合分的步骤。综合推理和鹈鹕不计分，它们失败不影响综合分，也就不算报告报错 */
+const SCORED: Stage[] = ["detect", "basic", "candy"];
+
 /**
- * 报告是否带有报错：任何一步失败或被跳过、有题目调用失败、指纹检测没跑通、或算不出综合分。
- * 带报错的报告结果不完整，不参与模型对比。
+ * 报告是否带有报错：计分的步骤失败或被跳过、有题目调用失败、指纹检测没跑通、或算不出综合分。
+ * 带报错的报告综合分不可靠，不参与模型对比。
  */
 export function hasError(r: Report): boolean {
   return (
     r.score === null ||
-    Object.keys(r.errors ?? {}).length > 0 ||
+    SCORED.some((s) => r.errors?.[s]) ||
     (r.basic?.failedCalls ?? 0) > 0 ||
     (r.candy?.failedCalls ?? 0) > 0 ||
-    (r.colorblind?.failedCalls ?? 0) > 0 ||
     r.detect?.verdict === "inconclusive"
   );
 }
 
 /** 报错报告的一句话原因，用于在列表里展示 */
 export function errorReason(r: Report): string {
-  const stageError = Object.values(r.errors ?? {})[0];
+  const stageError = SCORED.map((s) => r.errors?.[s]).find(Boolean);
   if (stageError) return stageError;
-  const bench = [r.basic, r.candy, r.colorblind].find((b) => b?.error || (b?.failedCalls ?? 0) > 0);
+  const bench = [r.basic, r.candy].find((b) => b?.error || (b?.failedCalls ?? 0) > 0);
   if (bench?.error) return bench.error;
   if (bench) return `${bench.failedCalls} 题调用失败`;
   if (r.detect?.verdict === "inconclusive")

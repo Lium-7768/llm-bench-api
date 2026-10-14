@@ -18,7 +18,7 @@ const checks = [
     async () => {
       const { data } = await json("GET", "/api/v1", 200);
       expect(data.protocols?.length === 3, `protocols=${JSON.stringify(data.protocols)}`);
-      expect(data.stages?.join() === "detect,basic,candy,colorblind,pelican", `stages=${JSON.stringify(data.stages)}`);
+      expect(data.stages?.join() === "detect,basic,candy,inference,pelican", `stages=${JSON.stringify(data.stages)}`);
     },
   ],
   [

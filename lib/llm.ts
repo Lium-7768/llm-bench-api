@@ -318,6 +318,21 @@ export async function chatStream(t: Target, req: ChatRequest): Promise<StreamRes
   });
 }
 
+/**
+ * 长回答用流式拿完整文本。非流式请求在模型生成完之前连接上没有任何数据，
+ * 部分中转站和网关会在空闲一分钟左右直接断开（实测 ~72s 后 ETIMEDOUT）；流式有持续数据，不会被断。
+ * 上游拒绝流式请求（HTTP 错误）时退回普通请求，超时和断连不退回，避免把时间花两遍。
+ */
+export async function chatLong(t: Target, req: ChatRequest): Promise<ChatResponse> {
+  try {
+    const res = await chatStream(t, req);
+    return { text: res.text, usage: res.usage, toolCalls: [], latencyMs: res.latencyMs };
+  } catch (e) {
+    if (e instanceof UpstreamError && e.status > 0) return chat(t, req);
+    throw e;
+  }
+}
+
 /** 列出接口可用的模型 */
 export async function listModels(t: Omit<Target, "model">): Promise<string[]> {
   return withTimeout(20_000, async (signal) => {

@@ -165,7 +165,7 @@ function ScoreRow({
 }
 
 function CompareTables({ runs }: { runs: Report[] }) {
-  const benches = (r: Report) => [r.basic, r.candy, r.colorblind].filter((b): b is BenchResult => !!b);
+  const benches = (r: Report) => [r.basic, r.candy, r.inference].filter((b): b is BenchResult => !!b);
   const categories = [...new Set(runs.flatMap((r) => benches(r).flatMap((b) => b.categories.map((c) => c.category))))];
   const seeds = new Set(runs.flatMap((r) => benches(r).map((b) => `${b.seed}/${b.bankVersion}`)));
 
@@ -260,7 +260,7 @@ function QuestionMatrix({ runs }: { runs: Report[] }) {
   const answersOf = (r: Report) => [
     ...(r.basic?.answers ?? []),
     ...(r.candy?.answers ?? []),
-    ...(r.colorblind?.answers ?? []),
+    ...(r.inference?.answers ?? []),
   ];
   const ids = [...new Set(runs.flatMap((r) => answersOf(r).map((a) => a.questionId)))];
   const prompts = new Map(QUESTIONS.map((q) => [q.id, q.prompt]));

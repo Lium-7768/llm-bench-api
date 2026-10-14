@@ -24,7 +24,7 @@ export const STAGE_INFO: Record<Stage, { name: string; desc: string; Icon: typeo
       color: "text-cyan",
       hex: "#0891b2",
     },
-    colorblind: {
+    inference: {
       name: "综合推理",
       desc: "知识 + 多步反证 + 抗诱导的复合题，单独一步，不计入综合分",
       Icon: Dna,

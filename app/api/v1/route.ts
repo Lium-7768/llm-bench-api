@@ -17,7 +17,7 @@ export function GET() {
     bankVersion: BANK_VERSION,
     totalQuestions: QUESTIONS.length,
     protocols: ["openai", "anthropic", "gemini"],
-    stages: ["detect", "basic", "candy", "colorblind", "pelican"],
+    stages: ["detect", "basic", "candy", "inference", "pelican"],
     endpoints: [
       { method: "GET", path: "/api/v1", desc: "本索引" },
       { method: "GET", path: "/api/v1/openapi", desc: "OpenAPI 3.1 描述" },
