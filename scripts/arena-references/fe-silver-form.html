@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <form id="signup" novalidate>
+      <input id="email" aria-describedby="email-error" />
+      <div id="email-error"></div>
+      <input id="password" type="password" aria-describedby="password-error" />
+      <div id="password-error"></div>
+      <input id="confirm" type="password" aria-describedby="confirm-error" />
+      <div id="confirm-error"></div>
+      <label><input id="agree" type="checkbox" aria-describedby="agree-error" />同意</label>
+      <div id="agree-error"></div>
+      <button id="submit" type="submit">注册</button>
+    </form>
+    <p id="success" hidden></p>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const rules = {
+        email: () => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("email").value) ? "" : "请输入有效的邮箱"),
+        password: () => {
+          const v = $("password").value;
+          return v.length >= 8 && /[a-zA-Z]/.test(v) && /\d/.test(v) ? "" : "密码至少 8 位，需包含字母和数字";
+        },
+        confirm: () => ($("confirm").value === $("password").value ? "" : "两次输入的密码不一致"),
+        agree: () => ($("agree").checked ? "" : "请先同意条款"),
+      };
+      const touched = new Set();
+      let submitted = false;
+      const check = (f) => {
+        const msg = touched.has(f) || submitted ? rules[f]() : "";
+        $(f + "-error").textContent = msg;
+        if (msg) $(f).setAttribute("aria-invalid", "true");
+        else $(f).removeAttribute("aria-invalid");
+        return !rules[f]();
+      };
+      for (const f of Object.keys(rules)) {
+        $(f).addEventListener("blur", () => {
+          touched.add(f);
+          check(f);
+        });
+        $(f).addEventListener(f === "agree" ? "change" : "input", () => {
+          check(f);
+          if (f === "password" && (touched.has("confirm") || submitted)) check("confirm");
+        });
+      }
+      $("signup").addEventListener("submit", (e) => {
+        e.preventDefault();
+        submitted = true;
+        const bad = Object.keys(rules).filter((f) => !check(f));
+        if (bad.length) {
+          $(bad[0]).focus();
+          $("success").hidden = true;
+          return;
+        }
+        $("success").textContent = "注册成功：" + $("email").value;
+        $("success").hidden = false;
+      });
+    </script>
+  </body>
+</html>

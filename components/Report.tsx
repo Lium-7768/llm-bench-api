@@ -114,13 +114,25 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
               <p className="text-sm text-readout">
                 综合得分 = 指纹检测 30% + 基础测试 40% + 糖果测试 30%，综合推理和鹈鹕测试单独展示，不计分。
               </p>
-              {report.arena && (
-                <p className="text-sm">
-                  编程段位{" "}
-                  <strong className="font-display font-semibold text-violet">
-                    {report.arena.rank ? TIER_LABEL[report.arena.rank] : "未入段"}
-                  </strong>
-                  <span className="ml-1.5 text-readout">（{LANGUAGE_LABEL[report.arena.language]}）</span>
+              {(report.arena || report.arenaFrontend) && (
+                <p className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm sm:justify-start">
+                  {report.arena && (
+                    <span>
+                      算法段位{" "}
+                      <strong className="font-display font-semibold text-violet">
+                        {report.arena.rank ? TIER_LABEL[report.arena.rank] : "未入段"}
+                      </strong>
+                      <span className="ml-1.5 text-readout">（{LANGUAGE_LABEL[report.arena.language]}）</span>
+                    </span>
+                  )}
+                  {report.arenaFrontend && (
+                    <span>
+                      前端段位{" "}
+                      <strong className="font-display font-semibold text-violet">
+                        {report.arenaFrontend.rank ? TIER_LABEL[report.arenaFrontend.rank] : "未入段"}
+                      </strong>
+                    </span>
+                  )}
                 </p>
               )}
               {actions && <div className="mt-1 flex justify-center gap-2 sm:justify-start">{actions}</div>}

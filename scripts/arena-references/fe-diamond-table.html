@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <input id="filter" />
+    <table id="grid">
+      <thead>
+        <tr></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button id="prev">上一页</button><span id="page"></span><button id="next">下一页</button>
+    <script>
+      const cols = ["name", "age", "city", "score"];
+      const data = Array.from({ length: 57 }, (_, k) => {
+        const i = k + 1;
+        return {
+          i,
+          name: "User" + i,
+          age: ((i * 37) % 50) + 18,
+          city: ["Beijing", "Shanghai", "Shenzhen", "Hangzhou"][i % 4],
+          score: (i * 73) % 101,
+        };
+      });
+      let sortCol = null,
+        dir = 0,
+        page = 1,
+        q = "";
+      const cmp = {
+        name: (a, b) => a.name.localeCompare(b.name, "en", { numeric: true }),
+        age: (a, b) => a.age - b.age,
+        city: (a, b) => (a.city < b.city ? -1 : a.city > b.city ? 1 : 0),
+        score: (a, b) => a.score - b.score,
+      };
+      const head = document.querySelector("#grid thead tr");
+      cols.forEach((c) => {
+        const th = document.createElement("th");
+        const b = document.createElement("button");
+        b.textContent = c;
+        b.onclick = () => {
+          if (sortCol !== c) {
+            sortCol = c;
+            dir = 1;
+          } else dir = dir === 1 ? -1 : dir === -1 ? 0 : 1;
+          if (!dir) sortCol = null;
+          render();
+        };
+        th.appendChild(b);
+        head.appendChild(th);
+      });
+      const render = () => {
+        let rows = data.filter((r) => !q || r.name.toLowerCase().includes(q) || r.city.toLowerCase().includes(q));
+        if (sortCol) rows = rows.slice().sort((a, b) => cmp[sortCol](a, b) * dir || a.i - b.i);
+        const pages = Math.ceil(rows.length / 10);
+        page = pages ? Math.min(Math.max(page, 1), pages) : 0;
+        const tbody = document.querySelector("#grid tbody");
+        tbody.innerHTML = "";
+        for (const r of rows.slice((page - 1) * 10, page * 10)) {
+          const tr = document.createElement("tr");
+          cols.forEach((c) => {
+            const td = document.createElement("td");
+            td.textContent = r[c];
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        }
+        head
+          .querySelectorAll("th")
+          .forEach((th, k) =>
+            th.setAttribute("aria-sort", cols[k] === sortCol ? (dir === 1 ? "ascending" : "descending") : "none"),
+          );
+        document.getElementById("page").textContent = "第 " + page + " / " + pages + " 页";
+        document.getElementById("prev").disabled = page <= 1;
+        document.getElementById("next").disabled = page >= pages;
+      };
+      document.getElementById("filter").addEventListener("input", (e) => {
+        q = e.target.value.toLowerCase();
+        page = 1;
+        render();
+      });
+      document.getElementById("prev").onclick = () => {
+        page--;
+        render();
+      };
+      document.getElementById("next").onclick = () => {
+        page++;
+        render();
+      };
+      render();
+    </script>
+  </body>
+</html>

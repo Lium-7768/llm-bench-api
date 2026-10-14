@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <input id="fruit" role="combobox" aria-controls="fruit-list" aria-autocomplete="list" aria-expanded="false" />
+    <ul id="fruit-list" role="listbox" hidden></ul>
+    <div id="fruit-empty" hidden>没有匹配项</div>
+    <div id="fruit-value"></div>
+    <script>
+      const all = [
+        "Apple",
+        "Apricot",
+        "Banana",
+        "Blueberry",
+        "Cherry",
+        "Grape",
+        "Lemon",
+        "Mango",
+        "Orange",
+        "Peach",
+        "Pear",
+        "Watermelon",
+      ];
+      const input = document.getElementById("fruit"),
+        list = document.getElementById("fruit-list"),
+        empty = document.getElementById("fruit-empty");
+      let open = false,
+        items = [],
+        active = -1;
+      const matches = () => all.filter((f) => f.toLowerCase().includes(input.value.toLowerCase()));
+      const render = () => {
+        list.innerHTML = "";
+        items.forEach((f, i) => {
+          const li = document.createElement("li");
+          li.id = "opt-" + all.indexOf(f);
+          li.setAttribute("role", "option");
+          li.textContent = f;
+          li.setAttribute("aria-selected", String(i === active));
+          li.addEventListener("mousedown", (e) => e.preventDefault());
+          li.addEventListener("click", () => choose(f));
+          list.appendChild(li);
+        });
+        list.hidden = !open || !items.length;
+        empty.hidden = !open || items.length > 0;
+        input.setAttribute("aria-expanded", String(open));
+        if (open && active >= 0) input.setAttribute("aria-activedescendant", "opt-" + all.indexOf(items[active]));
+        else input.removeAttribute("aria-activedescendant");
+      };
+      const choose = (f) => {
+        input.value = f;
+        document.getElementById("fruit-value").textContent = f;
+        open = false;
+        active = -1;
+        render();
+      };
+      input.addEventListener("input", () => {
+        items = matches();
+        active = -1;
+        open = true;
+        render();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          if (!open) {
+            items = matches();
+            active = -1;
+            open = true;
+          } else if (items.length)
+            active = e.key === "ArrowDown" ? (active + 1) % items.length : active <= 0 ? items.length - 1 : active - 1;
+          render();
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          if (open && active >= 0) choose(items[active]);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          if (open) {
+            open = false;
+            active = -1;
+          } else input.value = "";
+          render();
+        }
+      });
+      render();
+    </script>
+  </body>
+</html>

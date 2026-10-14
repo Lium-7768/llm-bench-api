@@ -1,0 +1,291 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      input {
+        width: 80px;
+      }
+    </style>
+  </head>
+  <body>
+    <table id="sheet"></table>
+    <script>
+      const COLS = "ABCDE",
+        ROWS = 6,
+        raw = {},
+        ids = [];
+      for (let r = 1; r <= ROWS; r++) for (const c of COLS) ids.push(c + r);
+      const table = document.getElementById("sheet");
+      for (let r = 1; r <= ROWS; r++) {
+        const tr = table.insertRow();
+        for (const c of COLS) {
+          const td = tr.insertCell();
+          const inp = document.createElement("input");
+          inp.id = c + r;
+          td.appendChild(inp);
+          raw[c + r] = "";
+        }
+      }
+      class E {
+        constructor(code) {
+          this.code = code;
+        }
+      }
+      const ERR = (c) => new E(c);
+      function parse(src) {
+        const toks = [];
+        let i = 0;
+        while (i < src.length) {
+          const ch = src[i];
+          if (/\s/.test(ch)) {
+            i++;
+            continue;
+          }
+          let m;
+          if ((m = /^(\d+(\.\d*)?|\.\d+)/.exec(src.slice(i)))) {
+            toks.push({ t: "num", v: Number(m[0]) });
+            i += m[0].length;
+            continue;
+          }
+          if ((m = /^[A-Za-z]+\d*/.exec(src.slice(i)))) {
+            toks.push({ t: /\d/.test(m[0]) ? "ref" : "name", v: m[0].toUpperCase() });
+            i += m[0].length;
+            continue;
+          }
+          if ("+-*/(),:".includes(ch)) {
+            toks.push({ t: ch });
+            i++;
+            continue;
+          }
+          throw 0;
+        }
+        let p = 0;
+        const peek = () => toks[p] && toks[p].t,
+          eat = (t) => {
+            if (peek() !== t) throw 0;
+            return toks[p++];
+          };
+        const cell = (v) => {
+          const m = /^([A-E])([1-6])$/.exec(v);
+          if (!m) throw 0;
+          return v;
+        };
+        const expr = () => {
+          let n = term();
+          while (peek() === "+" || peek() === "-") {
+            const op = toks[p++].t;
+            n = { op, l: n, r: term() };
+          }
+          return n;
+        };
+        const term = () => {
+          let n = unary();
+          while (peek() === "*" || peek() === "/") {
+            const op = toks[p++].t;
+            n = { op, l: n, r: unary() };
+          }
+          return n;
+        };
+        const unary = () => {
+          if (peek() === "-") {
+            p++;
+            return { op: "neg", x: unary() };
+          }
+          if (peek() === "+") {
+            p++;
+            return unary();
+          }
+          return primary();
+        };
+        const primary = () => {
+          const k = peek();
+          if (k === "num") return { num: toks[p++].v };
+          if (k === "ref") return { ref: cell(toks[p++].v) };
+          if (k === "(") {
+            p++;
+            const n = expr();
+            eat(")");
+            return n;
+          }
+          if (k === "name") {
+            const f = toks[p++].v;
+            if (!["SUM", "MIN", "MAX"].includes(f)) throw 0;
+            eat("(");
+            const args = [];
+            for (;;) {
+              if (peek() === "ref" && toks[p + 1] && toks[p + 1].t === ":") {
+                const a = cell(toks[p++].v);
+                p++;
+                const b = cell(eat("ref").v);
+                args.push({ range: [a, b] });
+              } else args.push(expr());
+              if (peek() === ",") {
+                p++;
+                continue;
+              }
+              break;
+            }
+            eat(")");
+            return { fn: f, args };
+          }
+          throw 0;
+        };
+        const n = expr();
+        if (p !== toks.length) throw 0;
+        return n;
+      }
+      const rangeCells = ([a, b]) => {
+        const c1 = COLS.indexOf(a[0]),
+          c2 = COLS.indexOf(b[0]),
+          r1 = +a.slice(1),
+          r2 = +b.slice(1);
+        const out = [];
+        for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++)
+          for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) out.push(COLS[c] + r);
+        return out;
+      };
+      const refsOf = (n, out) => {
+        if (!n) return out;
+        if (n.ref) out.push(n.ref);
+        if (n.range) out.push(...rangeCells(n.range));
+        if (n.l) refsOf(n.l, out);
+        if (n.r) refsOf(n.r, out);
+        if (n.x) refsOf(n.x, out);
+        if (n.args) n.args.forEach((a) => refsOf(a, out));
+        return out;
+      };
+      function recalc() {
+        const ast = {},
+          deps = {};
+        for (const id of ids) {
+          const s = raw[id];
+          if (s.startsWith("=")) {
+            try {
+              ast[id] = parse(s.slice(1));
+              deps[id] = refsOf(ast[id], []);
+            } catch {
+              ast[id] = null;
+              deps[id] = [];
+            }
+          } else deps[id] = [];
+        }
+        // Tarjan 找环
+        const idx = {},
+          low = {},
+          on = {},
+          st = [];
+        let k = 0;
+        const cyc = new Set();
+        const sc = (v) => {
+          idx[v] = low[v] = k++;
+          st.push(v);
+          on[v] = true;
+          for (const w of deps[v]) {
+            if (idx[w] === undefined) {
+              sc(w);
+              low[v] = Math.min(low[v], low[w]);
+            } else if (on[w]) low[v] = Math.min(low[v], idx[w]);
+          }
+          if (low[v] === idx[v]) {
+            const comp = [];
+            let w;
+            do {
+              w = st.pop();
+              on[w] = false;
+              comp.push(w);
+            } while (w !== v);
+            if (comp.length > 1 || deps[v].includes(v)) comp.forEach((x) => cyc.add(x));
+          }
+        };
+        for (const id of ids) if (idx[id] === undefined) sc(id);
+        const memo = {};
+        const cellVal = (id) => {
+          if (id in memo) return memo[id];
+          let v;
+          const s = raw[id];
+          if (cyc.has(id)) v = ERR("#CYCLE!");
+          else if (s === "") v = { empty: true };
+          else if (s.startsWith("=")) v = ast[id] ? ev(ast[id]) : ERR("#ERROR!");
+          else if (s.trim() !== "" && Number.isFinite(Number(s))) v = Number(s);
+          else v = { text: s };
+          return (memo[id] = v);
+        };
+        const num = (id) => {
+          const v = cellVal(id);
+          if (v instanceof E) return v;
+          if (v.text !== undefined) return ERR("#VALUE!");
+          if (v.empty) return 0;
+          return v;
+        };
+        const ev = (n) => {
+          if (n.num !== undefined) return n.num;
+          if (n.ref) return num(n.ref);
+          if (n.op === "neg") {
+            const x = ev(n.x);
+            return x instanceof E ? x : -x;
+          }
+          if (n.op) {
+            const l = ev(n.l);
+            if (l instanceof E) return l;
+            const r = ev(n.r);
+            if (r instanceof E) return r;
+            if (n.op === "/" && r === 0) return ERR("#DIV/0!");
+            return n.op === "+" ? l + r : n.op === "-" ? l - r : n.op === "*" ? l * r : l / r;
+          }
+          const vals = [];
+          for (const a of n.args) {
+            if (a.range) {
+              for (const id of rangeCells(a.range)) {
+                const v = cellVal(id);
+                if (v instanceof E) return v;
+                if (v.text !== undefined) return ERR("#VALUE!");
+                if (!v.empty) vals.push(v);
+              }
+            } else {
+              const v = ev(a);
+              if (v instanceof E) return v;
+              vals.push(v);
+            }
+          }
+          if (n.fn === "SUM") return vals.reduce((s, x) => s + x, 0);
+          if (!vals.length) return 0;
+          return n.fn === "MIN" ? Math.min(...vals) : Math.max(...vals);
+        };
+        for (const id of ids) {
+          const v = cellVal(id),
+            el = document.getElementById(id);
+          el.dataset.display =
+            v instanceof E
+              ? v.code
+              : v.empty
+                ? ""
+                : v.text !== undefined
+                  ? v.text
+                  : Number.isInteger(v)
+                    ? String(v)
+                    : String(Math.round(v * 1e4) / 1e4);
+          if (document.activeElement !== el) el.value = el.dataset.display;
+        }
+      }
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        el.addEventListener("focus", () => {
+          el.value = raw[id];
+        });
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            raw[id] = el.value;
+            recalc();
+          }
+        });
+        el.addEventListener("blur", () => {
+          raw[id] = el.value;
+          recalc();
+          el.value = el.dataset.display;
+        });
+      }
+      recalc();
+    </script>
+  </body>
+</html>

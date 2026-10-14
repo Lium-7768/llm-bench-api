@@ -18,7 +18,10 @@
  * - 鹈鹕图：OpenAI / Gemini 协议返回纯 SVG 静态图；Anthropic 协议返回包在代码块里的动态图（SMIL 转动车轮）
  * - 编程彩蛋：只会 Python，黄金档（修祖传代码）只答对一题，所以段位是白银；其他语言交一段打招呼的程序，青铜就过不去。
  *   代码真的交给 Judge0 公共实例运行，需要联网
+ * - 编程彩蛋前端赛道：交参考答案（UI 题的页面在 scripts/arena-references，逻辑题取 logic.ts 里的参考实现），
+ *   王者档交没做完的东西，所以段位是钻石
  */
+import { existsSync, readFileSync } from "node:fs";
 import http from "node:http";
 
 const PORT = Number(process.env.PORT ?? 4555);
@@ -112,7 +115,34 @@ for i in range(n):
 print(b[W])`,
 };
 
+/** 前端赛道的参考答案，按题目标题查 */
+const FRONTEND = (() => {
+  const root = new URL("../", import.meta.url);
+  const read = (path) => readFileSync(new URL(path, root), "utf8");
+  const answers = {};
+  for (const m of read("lib/arena/frontend/ui.ts").matchAll(
+    /id: "([\w-]+)",\s*tier: "(\w+)",\s*kind: "ui",\s*title: "([^"]+)"/g,
+  )) {
+    const file = new URL(`scripts/arena-references/${m[1]}.html`, root);
+    if (existsSync(file)) answers[m[3]] = { tier: m[2], fence: "html", code: readFileSync(file, "utf8") };
+  }
+  for (const m of read("lib/arena/frontend/logic.ts").matchAll(
+    /tier: "(\w+)",\s*kind: "function",\s*title: "([^"]+)"[\s\S]*?reference: String\.raw`([^`]*)`/g,
+  ))
+    answers[m[2]] = { tier: m[1], fence: "js", code: m[3] };
+  return answers;
+})();
+
+const frontend = (text) => {
+  if (!/^(请用 JavaScript 实现|请做一个网页)/.test(text)) return null;
+  const answer = FRONTEND[text.match(/\n# (.+)\n/)?.[1]];
+  if (!answer || answer.tier === "king") return "```html\n<!doctype html><p>还没做完</p>\n```";
+  return "```" + answer.fence + "\n" + answer.code.trim() + "\n```";
+};
+
 const arena = (text) => {
+  const fe = frontend(text);
+  if (fe) return fe;
   const m = text.match(/^请用 (\S+) 解决下面的题目[\s\S]*?\n# (.+)\n/);
   if (!m) return null;
   const code = m[1] === "Python" && PY_SOLUTIONS[m[2]];

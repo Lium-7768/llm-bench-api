@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      .completed .title {
+        text-decoration: line-through;
+      }
+    </style>
+  </head>
+  <body>
+    <input id="new-todo" />
+    <ul id="todo-list"></ul>
+    <button data-filter="all">全部</button><button data-filter="active">未完成</button
+    ><button data-filter="completed">已完成</button> <span id="todo-count"></span
+    ><button id="clear-completed">清除已完成</button>
+    <script>
+      let todos = [],
+        filter = "all",
+        editing = null,
+        seq = 0;
+      const listEl = document.getElementById("todo-list");
+      const render = () => {
+        listEl.innerHTML = "";
+        for (const t of todos) {
+          if ((filter === "active" && t.done) || (filter === "completed" && !t.done)) continue;
+          const li = document.createElement("li");
+          li.className = "todo" + (t.done ? " completed" : "");
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.className = "toggle";
+          cb.checked = t.done;
+          cb.addEventListener("change", () => {
+            t.done = cb.checked;
+            render();
+          });
+          li.appendChild(cb);
+          if (editing === t.id) {
+            const ed = document.createElement("input");
+            ed.className = "edit";
+            ed.value = t.title;
+            ed.addEventListener("keydown", (e) => {
+              if (e.key === "Enter") {
+                const v = ed.value.trim();
+                if (v) t.title = v;
+                else todos = todos.filter((x) => x !== t);
+                editing = null;
+                render();
+              } else if (e.key === "Escape") {
+                editing = null;
+                render();
+              }
+            });
+            li.appendChild(ed);
+            listEl.appendChild(li);
+            ed.focus();
+            continue;
+          }
+          const span = document.createElement("span");
+          span.className = "title";
+          span.textContent = t.title;
+          span.addEventListener("dblclick", () => {
+            editing = t.id;
+            render();
+          });
+          const del = document.createElement("button");
+          del.className = "delete";
+          del.textContent = "×";
+          del.addEventListener("click", () => {
+            todos = todos.filter((x) => x !== t);
+            render();
+          });
+          li.append(span, del);
+          listEl.appendChild(li);
+        }
+        document.getElementById("todo-count").textContent = todos.filter((t) => !t.done).length + " 项未完成";
+        document.getElementById("clear-completed").disabled = !todos.some((t) => t.done);
+        document
+          .querySelectorAll("[data-filter]")
+          .forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === filter)));
+      };
+      document.getElementById("new-todo").addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        const v = e.target.value.trim();
+        if (!v) return;
+        todos.push({ id: ++seq, title: v, done: false });
+        e.target.value = "";
+        render();
+      });
+      document.querySelectorAll("[data-filter]").forEach((b) =>
+        b.addEventListener("click", () => {
+          filter = b.dataset.filter;
+          render();
+        }),
+      );
+      document.getElementById("clear-completed").addEventListener("click", () => {
+        todos = todos.filter((t) => !t.done);
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div role="tablist" id="tl"></div>
+    <div id="panels"></div>
+    <script>
+      const names = ["概览", "参数", "评论", "相关"],
+        disabled = [false, false, true, false];
+      const tabs = names.map((n, i) => {
+        const b = document.createElement("button");
+        b.id = "tab-" + i;
+        b.setAttribute("role", "tab");
+        b.setAttribute("aria-controls", "panel-" + i);
+        b.textContent = n;
+        if (disabled[i]) b.setAttribute("aria-disabled", "true");
+        document.getElementById("tl").appendChild(b);
+        return b;
+      });
+      const panels = names.map((n, i) => {
+        const p = document.createElement("div");
+        p.id = "panel-" + i;
+        p.setAttribute("role", "tabpanel");
+        p.setAttribute("aria-labelledby", "tab-" + i);
+        p.textContent = "面板：" + n;
+        document.getElementById("panels").appendChild(p);
+        return p;
+      });
+      let cur = 0;
+      const select = (i, focus) => {
+        cur = i;
+        tabs.forEach((t, j) => {
+          t.setAttribute("aria-selected", String(j === i));
+          t.tabIndex = j === i ? 0 : -1;
+          panels[j].hidden = j !== i;
+        });
+        if (focus) tabs[i].focus();
+      };
+      const enabled = tabs.map((_, i) => i).filter((i) => !disabled[i]);
+      tabs.forEach((t, i) => {
+        t.addEventListener("click", () => {
+          if (!disabled[i]) select(i);
+        });
+        t.addEventListener("keydown", (e) => {
+          const k = enabled.indexOf(cur);
+          let to = null;
+          if (e.key === "ArrowRight") to = enabled[(k + 1) % enabled.length];
+          else if (e.key === "ArrowLeft") to = enabled[(k - 1 + enabled.length) % enabled.length];
+          else if (e.key === "Home") to = enabled[0];
+          else if (e.key === "End") to = enabled[enabled.length - 1];
+          if (to !== null) {
+            e.preventDefault();
+            select(to, true);
+          }
+        });
+      });
+      select(0);
+    </script>
+  </body>
+</html>

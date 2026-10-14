@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      .over {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <textarea id="text"></textarea>
+    <div id="count"></div>
+    <button id="send">发送</button>
+    <ul id="sent"></ul>
+    <script>
+      const t = document.getElementById("text"),
+        c = document.getElementById("count"),
+        s = document.getElementById("send");
+      const update = () => {
+        const n = [...t.value].length;
+        c.textContent = "已输入 " + n + " / 140";
+        c.classList.toggle("over", n > 140);
+        s.disabled = !t.value.trim() || n > 140;
+      };
+      t.addEventListener("input", update);
+      s.addEventListener("click", () => {
+        const li = document.createElement("li");
+        li.textContent = t.value;
+        document.getElementById("sent").appendChild(li);
+        t.value = "";
+        update();
+      });
+      update();
+    </script>
+  </body>
+</html>

@@ -80,10 +80,12 @@ lib/                    服务端与共享逻辑
   channel.ts            异步队列，把并发结果转成按顺序消费的事件
   stamp.ts              无状态 HMAC 凭证（编程彩蛋的门槛）
   arena/                编程彩蛋：problems.ts、hard.ts、king.ts（题目、隐藏测试、参考解，只在服务端）、judge.ts（Judge0 适配）、
-                        run.ts（一档三题的作答与判题）、meta.ts（前后端共用的常量）
+                        run.ts（一档三题的作答与判题）、meta.ts（前后端共用的常量）、
+                        frontend/（前端赛道：logic.ts 逻辑题、ui.ts 页面题、problems.ts 题库与期望输出、
+                        sandbox.ts 浏览器里的隔离判题）
   web/                  只在浏览器用：api.ts（调用本站 API）、storage.ts（localStorage）、
                         config.ts（接口配置，useSyncExternalStore）、format.ts、egg.ts（解锁令牌，sessionStorage）
-scripts/                smoke.mjs、mock-upstream.mjs、release.mjs
+scripts/                smoke.mjs、mock-upstream.mjs、release.mjs；arena-references/ 前端赛道页面题的参考实现
 .github/workflows/      ci.yml、release.yml
 ```
 
@@ -220,14 +222,15 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 
 ### 编程彩蛋（lib/arena、lib/stamp.ts）
 
-隐藏玩法：编程段位赛，分青铜、白银、黄金、白金、钻石、王者六档。不计入综合分，不写进公开文档和 OpenAPI。
+隐藏玩法：编程段位赛，分青铜、白银、黄金、白金、钻石、王者六档，有两条赛道：算法（四种语言写完整程序）和前端（见下面「前端赛道」）。
+不计入综合分，不写进公开文档和 OpenAPI。结果在浏览器里补进解锁它的报告：算法赛道存 `report.arena`，前端赛道存 `report.arenaFrontend`。
 
 **门槛（挡住直接访问）**，服务端仍然无状态，全靠 HMAC 签名：
 
 1. 每一步跑完，`stage.done` 事件带一个 `stamp`（步骤、得分、被测接口指纹，3 小时有效）。接口指纹是协议、地址、模型、密钥一起做的 HMAC，凭证里看不出密钥，换接口或模型就失效
 2. 网页收齐五步的凭证、且糖果测试 100 分时，调 `POST /api/v1/unlock` 换解锁令牌（1 小时）。条件：五步都跑完，指纹、基础、综合推理有分，糖果 100 分
 3. 令牌只存 sessionStorage（`llmbench.egg`）。报告页的操作按钮里出现发光的彩蛋图标，是唯一入口；直接打开 `/arena` 读不到令牌，只显示「这里什么都没有」
-4. `POST /api/v1/arena` 每次跑一档，要解锁令牌；青铜以上还要上一档通过时 `result` 事件里的 `stamp`，同一种语言，不能跳档
+4. `POST /api/v1/arena` 每次跑一档（`track`：algo / frontend），要解锁令牌；青铜以上还要上一档 `result` 事件里的 `stamp`，同一赛道、同一种语言，不能跳档
 
 没有配置环境变量 `LLMBENCH_SECRET`（至少 16 个字符）时不签发凭证，两个接口都返回 404，彩蛋整个关闭。改了它，已签发的凭证全部失效。
 
@@ -241,7 +244,25 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 
 **作答**：三题并发，`chatLong()` 流式取回答，单题时限是这次请求剩下的时间减去留给判题的 60 秒（约 225 秒）。时限内没交卷记为「没有代码」，算没做出来；连不上、HTTP 错误才记为调用失败（可重试）。取回答里最长的代码块；没闭合的代码块取到结尾；没有代码块就整段当代码。黄金档额外给一段带 bug 的 Python「祖传代码」，要求用所选语言写出正确程序。每档答对 2 题晋级，没过就停，段位是通过的最高一档。
 
-**题目**（全部原创，`ARENA_VERSION = "2026.10.3"`）。青铜到黄金在 `problems.ts`，白金和钻石在 `hard.ts`，王者在 `king.ts`：
+**前端赛道**（`lib/arena/frontend`）：每档 1 道逻辑题 + 2 道页面题，答对 2 题晋级。
+
+- 逻辑题：模型实现一个 JS 函数。交给 Judge0 的程序 = 前置代码（读输入、静音 console、需要时装假时钟）+ 模型代码 + 隐藏测试脚本。期望输出不手写：服务端把 `reference` 放进 `node:vm` 用同一套脚本跑出来（`problems.ts` 的 `logicTestsOf`）
+- 页面题：模型输出完整的 HTML。服务端只取出页面（verdict 为 `pending`），通过 `problem.ui` 事件连同隐藏测试发给浏览器；网页在 `sandbox="allow-scripts allow-forms"`、不带 `allow-same-origin` 的 iframe 里运行它，并在页面最前面插入 CSP（禁止联网和外部资源），读不到本站的 localStorage
+- 页面测试是 `ui.ts` 里的 JS 数组，用 `sandbox.ts` 的辅助函数 T 派发合成事件、检查 DOM。合成事件不触发浏览器默认行为（Tab 移焦、Esc 关原生 dialog 等），题面里都写明了要自己处理。测试代码里不要写反引号和 `${}`
+- 判题的 iframe 必须在可视区域里：Chrome 会暂停屏幕外跨源 iframe 的 requestAnimationFrame。网页把它们缩小放在「正在你的浏览器里测试模型做的页面」区域
+- 门槛：前端赛道的 `stamp` 带逻辑题通过数和待判的页面题 id；进下一档时浏览器报告哪些页面题通过（`uiPassed`），服务端核对总数 ≥ 2。页面题的结果在用户浏览器里得出，可以被篡改，这是能真正运行页面的代价；彩蛋不涉及任何安全边界
+- 改页面题：先在 `scripts/arena-references/` 写参考实现并让测试全过，再故意改坏几处确认测试能抓到（参考实现也是模拟上游的答案）。改逻辑题：参考实现交给 Judge0 必须全过，常见的错误写法必须不过
+
+| 档   | 逻辑题                         | 页面题                                             |
+| ---- | ------------------------------ | -------------------------------------------------- |
+| 青铜 | 拼 class 名（clsx）            | 计数器；发消息（码点计数、纯文本防 XSS）           |
+| 白银 | 防抖（leading / trailing）     | 无障碍标签页（ARIA、方向键）；注册表单校验（时机） |
+| 黄金 | 深度相等（Map、Set、循环引用） | 可筛选的下拉框（combobox）；待办清单（编辑态）     |
+| 白金 | 并发请求池                     | 模态对话框（焦点陷阱、inert）；虚拟滚动列表        |
+| 钻石 | CSS 选择器引擎                 | 可排序列表（键盘 + pointer 拖拽）；数据表格        |
+| 王者 | 响应式系统（Proxy、调度）      | 迷你电子表格（解析、依赖、循环）；键盘日期选择器   |
+
+**算法赛道的题目**（全部原创，`ARENA_VERSION = "2026.10.3"`）。青铜到黄金在 `problems.ts`，白金和钻石在 `hard.ts`，王者在 `king.ts`：
 
 | 档   | ID                  | 题目           | 考点                                                                       |
 | ---- | ------------------- | -------------- | -------------------------------------------------------------------------- |
@@ -332,7 +353,7 @@ ALLOW_PRIVATE_BASE_URL=true pnpm dev
 # 页面里选「自定义 / 中转站」，地址 http://127.0.0.1:4555/v1，密钥随意（Anthropic 协议填 k）
 ```
 
-验证编程彩蛋：`EGG=1 pnpm mock`（糖果题全答对），服务端加 `LLMBENCH_SECRET=<任意 16 位以上>`，跑完五步后报告页出现彩蛋图标。模拟上游只会 Python，黄金档只答对一题，段位是白银；代码真的交给 Judge0 公共实例运行，需要联网。
+验证编程彩蛋：`EGG=1 pnpm mock`（糖果题全答对），服务端加 `LLMBENCH_SECRET=<任意 16 位以上>`，跑完五步后报告页出现彩蛋图标。算法赛道模拟上游只会 Python，黄金档只答对一题，段位是白银；前端赛道交参考答案，王者档交白卷，段位是钻石；代码真的交给 Judge0 公共实例运行，需要联网。
 
 模拟上游故意留了几个瑕疵（一道糖果题答错、自报身份是 Claude、Anthropic 不支持工具、Gemini 假流式），用来确认判分和检测确实生效，详见脚本开头的注释。
 

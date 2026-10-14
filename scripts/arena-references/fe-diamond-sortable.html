@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      #sortable {
+        list-style: none;
+        padding: 0;
+        width: 200px;
+      }
+      .item {
+        height: 40px;
+        line-height: 40px;
+        border: 1px solid #ccc;
+        margin: 2px 0;
+        user-select: none;
+      }
+      .grabbed {
+        background: #eef;
+      }
+    </style>
+  </head>
+  <body>
+    <ul id="sortable"></ul>
+    <p id="order"></p>
+    <p id="live" role="status"></p>
+    <script>
+      const names = { a: "苹果", b: "香蕉", c: "樱桃", d: "葡萄", e: "芒果", f: "桃子" };
+      let order = ["a", "b", "c", "d", "e", "f"],
+        grabbed = null,
+        before = null,
+        drag = null;
+      const ul = document.getElementById("sortable"),
+        live = document.getElementById("live");
+      const els = {};
+      for (const id of order) {
+        const li = document.createElement("li");
+        li.className = "item";
+        li.dataset.id = id;
+        li.tabIndex = 0;
+        li.textContent = names[id];
+        els[id] = li;
+      }
+      const render = () => {
+        order.forEach((id) => ul.appendChild(els[id]));
+        document.getElementById("order").textContent = order.join(",");
+      };
+      const say = (t) => (live.textContent = t);
+      ul.addEventListener("keydown", (e) => {
+        const li = e.target.closest(".item");
+        if (!li) return;
+        const id = li.dataset.id;
+        const k = order.indexOf(id);
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          if (grabbed === id) {
+            grabbed = null;
+            li.classList.remove("grabbed");
+            say("已放下，位于第 " + (k + 1) + " 项");
+          } else if (e.key === " ") {
+            grabbed = id;
+            before = order.slice();
+            li.classList.add("grabbed");
+            say("已拿起 " + names[id] + "，当前位置第 " + (k + 1) + " 项");
+          }
+        } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          const d = e.key === "ArrowUp" ? -1 : 1;
+          if (grabbed === id) {
+            const j = k + d;
+            if (j >= 0 && j < order.length) {
+              order.splice(k, 1);
+              order.splice(j, 0, id);
+              render();
+              li.focus();
+            }
+            say("已移动到第 " + (order.indexOf(id) + 1) + " 项");
+          } else {
+            const j = k + d;
+            if (j >= 0 && j < order.length) els[order[j]].focus();
+          }
+        } else if (e.key === "Escape" && grabbed === id) {
+          e.preventDefault();
+          order = before;
+          grabbed = null;
+          li.classList.remove("grabbed");
+          render();
+          li.focus();
+          say("已取消");
+        }
+      });
+      ul.addEventListener("pointerdown", (e) => {
+        const li = e.target.closest(".item");
+        if (li) drag = li.dataset.id;
+      });
+      document.addEventListener("pointerup", (e) => {
+        if (!drag) return;
+        const id = drag;
+        drag = null;
+        const over = document.elementFromPoint(e.clientX, e.clientY);
+        const target = over && over.closest(".item");
+        if (!target || target.dataset.id === id) return;
+        const r = target.getBoundingClientRect();
+        const after = e.clientY > r.top + r.height / 2;
+        order.splice(order.indexOf(id), 1);
+        order.splice(order.indexOf(target.dataset.id) + (after ? 1 : 0), 0, id);
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>

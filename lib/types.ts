@@ -186,8 +186,10 @@ export interface Report {
   /** 综合推理测试结果，独立于综合分 */
   inference?: BenchResult;
   pelican?: PelicanResult;
-  /** 编程彩蛋的段位赛结果，只由网页在浏览器里补进报告，接口不返回 */
+  /** 编程彩蛋的段位赛结果（算法赛道），只由网页在浏览器里补进报告，接口不返回 */
   arena?: ArenaResult;
+  /** 编程彩蛋的前端赛道结果，同上 */
+  arenaFrontend?: ArenaResult;
   /** 某一步整体失败或被跳过的原因 */
   errors: Partial<Record<Stage, string>>;
 }
@@ -200,19 +202,25 @@ export interface Report {
  */
 export type ArenaLanguage = "python" | "javascript" | "java" | "go";
 
+/** algo 算法赛道（四种语言，全部在 Judge0 判）；frontend 前端赛道（JavaScript 逻辑题在 Judge0 判，UI 题在浏览器里判） */
+export type ArenaTrack = "algo" | "frontend";
+
 /** 段位从低到高 */
 export type ArenaTier = "bronze" | "silver" | "gold" | "platinum" | "diamond" | "king";
 
 /**
  * accepted 全部通过；wrong_answer 答案错误；time_limit 超时；compile_error 编译失败；
- * runtime_error 运行出错；no_code 回答里没有代码；error 调用模型或判题服务失败（不算模型答错）
+ * runtime_error 运行出错；no_code 回答里没有代码；error 调用模型或判题服务失败（不算模型答错）；
+ * pending 前端赛道的 UI 题，服务端只负责拿到页面，等浏览器判定
  */
 export type ProblemVerdict =
-  "accepted" | "wrong_answer" | "time_limit" | "compile_error" | "runtime_error" | "no_code" | "error";
+  "accepted" | "wrong_answer" | "time_limit" | "compile_error" | "runtime_error" | "no_code" | "error" | "pending";
 
 export interface ProblemResult {
   id: string;
   title: string;
+  /** program 完整程序；function 前端逻辑题（实现函数）；ui 前端 UI 题（code 是整个 HTML 页面） */
+  kind?: "program" | "function" | "ui";
   verdict: ProblemVerdict;
   passedTests: number;
   totalTests: number;
@@ -230,6 +238,7 @@ export interface ProblemResult {
 }
 
 export interface TierResult {
+  track?: ArenaTrack;
   tier: ArenaTier;
   language: ArenaLanguage;
   /** 答对 2 题及以上 */
@@ -241,6 +250,8 @@ export interface TierResult {
 }
 
 export interface ArenaResult {
+  /** 旧结果没有这个字段，按 algo 处理 */
+  track?: ArenaTrack;
   language: ArenaLanguage;
   /** 通过的最高段位；一档都没过为 null */
   rank: ArenaTier | null;
