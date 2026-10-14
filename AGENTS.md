@@ -46,7 +46,7 @@ app/
     models/route.ts     POST 列出被测接口的可用模型
     questions/route.ts  GET  题库（默认不带答案）
     openapi/route.ts    GET  OpenAPI 3.1 描述
-    unlock/route.ts     POST 编程彩蛋：五步凭证换解锁令牌（不公开）
+    unlock/route.ts     POST 编程彩蛋：计分步骤的凭证换解锁令牌（不公开）
     arena/route.ts      POST 编程彩蛋：跑指定的 1–3 道题，SSE（不公开）；catalog/ 题目目录
   page.tsx              检测页：启动台 → 运行中 → 报告
   arena/page.tsx        编程彩蛋页，没有解锁令牌时只显示「这里什么都没有」
@@ -129,7 +129,7 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 - 上游因参数不兼容返回 400 时自动调整重试：去掉 `temperature`、`max_tokens` 改为 `max_completion_tokens`、去掉 `stream_options`。覆盖 OpenAI 推理模型和部分兼容接口。
 - Anthropic 的 thinking 块、Gemini 的 `thought` 片段不计入回答文本。
 - OpenAI 和 Gemini 默认不传输出上限：推理 / 思考模型的思考 token 也算在上限里，设小了会返回空回答。Anthropic 必须传，默认 2048，鹈鹕 8192。
-- 长回答（鹈鹕、综合推理）用 `chatLong()`：内部走流式再拼成完整文本。非流式请求在生成完之前连接上没有数据，部分中转站会在空闲约 70 秒后断开（实测 `ETIMEDOUT`）；上游拒绝流式时退回普通请求。综合推理单题时限 270 秒（思考型模型实测 140–160 秒以上），会被单次请求剩余的时间截断，所以网页把每一步分开请求。
+- 长回答（鹈鹕、综合推理）用 `chatLong()`：内部走流式再拼成完整文本。非流式请求在生成完之前连接上没有数据，部分中转站会在空闲约 70 秒后断开（实测 `ETIMEDOUT`）；上游拒绝流式时退回普通请求。鹈鹕单步时限 270 秒、综合推理 270 秒（思考型模型实测 140–160 秒以上），都受单次请求剩余时间截断，所以网页把每一步分开请求。
 - 模型回显比对时忽略 `vendor/` 前缀、中转站加的 `xxx_` 前缀和日期后缀，例如请求 `autoclaw/zai_glm-5.3-flash`、响应 `glm-5.3-flash` 算一致。
 - 没给 `protocol` 时按地址推断：域名含 `anthropic.com` 或路径含 `/anthropic`、以 `/messages` 结尾 → anthropic；`generativelanguage.googleapis.com` 且路径不含 `/openai` → gemini；其余 → openai。
 
@@ -228,7 +228,7 @@ check.runCheck()  按顺序执行，整体时限 285 秒（Vercel 函数上限 3
 **门槛（挡住直接访问）**，服务端仍然无状态，全靠 HMAC 签名：
 
 1. 每一步跑完，`stage.done` 事件带一个 `stamp`（步骤、得分、被测接口指纹，3 小时有效）。接口指纹是协议、地址、模型、密钥一起做的 HMAC，凭证里看不出密钥，换接口或模型就失效
-2. 网页收齐五步的凭证、且糖果测试 100 分时，调 `POST /api/v1/unlock` 换解锁令牌（30 天）。条件：五步都跑完，指纹、基础、综合推理有分，糖果 100 分。令牌存进这份报告的 `report.unlock`（只在浏览器里）
+2. 网页收齐计分步骤的凭证、且糖果测试 100 分时，调 `POST /api/v1/unlock` 换解锁令牌（30 天）。条件：指纹、基础、综合推理有分，糖果 100 分；**鹈鹕不计分、画图慢容易超时，不要它的凭证**。令牌存进这份报告的 `report.unlock`（只在浏览器里）
 3. 入口是报告操作按钮里发光的彩蛋图标（`components/EggEntry.tsx`），检测页和历史记录里的报告都会显示，前提是：报告里有没过期的令牌，并且当前配置的模型和接口地址与这份报告一致（令牌只对当时的接口、模型、密钥有效）。点击时把令牌放进 sessionStorage（`llmbench.egg`）再进 `/arena`；直接打开 `/arena` 读不到令牌，只显示「这里什么都没有」
 4. `POST /api/v1/arena/catalog` 返回两条赛道的题目目录（标题、标签，不含题面）；`POST /api/v1/arena` 跑指定的 1–3 道题（`track`、`language`、`problems`），SSE 推送。两者都要解锁令牌
 

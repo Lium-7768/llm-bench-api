@@ -15,7 +15,8 @@ interface UnlockBody extends TargetBody {
 
 /**
  * POST /api/v1/unlock —— 编程彩蛋的入口。不在文档里公开。
- * 交上同一个接口和模型的五步凭证：五步都跑完、计分步骤都有分、糖果测试全对，换一张 1 小时有效的解锁令牌。
+ * 交上同一个接口和模型的凭证：计分步骤都有分、糖果测试全对，换一张 30 天有效的解锁令牌。
+ * 鹈鹕不计分、容易超时，不要求它的凭证。
  */
 export async function POST(req: Request) {
   if (!stampsEnabled()) return fail("这里什么都没有", 404, "not_found");
@@ -30,8 +31,8 @@ export async function POST(req: Request) {
     if (p) got.set(p.s, p.v);
   }
   const scored = (s: Stage) => got.has(s) && got.get(s) !== null;
-  const qualified =
-    scored("detect") && scored("basic") && scored("inference") && got.has("pelican") && got.get("candy") === 100;
+  // 鹈鹕不计分，画图慢或中转站限流时容易超时；它失败不代表评测不完整，所以不作门槛。
+  const qualified = scored("detect") && scored("basic") && scored("inference") && got.get("candy") === 100;
   if (!qualified) return fail("条件未满足", 403, "locked");
 
   // 存进报告里长期使用：30 天内从历史记录打开这份报告都能进入

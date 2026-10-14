@@ -19,6 +19,9 @@ export const ALL_STAGES: Stage[] = ["detect", "basic", "candy", "inference", "pe
 /** 整体时限：留出余量，避免函数被平台强制终止（Vercel 上限 300 秒） */
 const BUDGET_MS = 285_000;
 
+/** 鹈鹕单步上限：画图慢，给到接近整体时限，但不能超过 BUDGET_MS */
+const PELICAN_TIMEOUT_MS = 270_000;
+
 export interface CheckOptions {
   target: Target;
   stages?: Stage[];
@@ -128,7 +131,9 @@ export async function* runCheck(opts: CheckOptions): AsyncGenerator<CheckEvent> 
         report[stage] = result;
         yield { type: "stage.done", stage, score: result?.score ?? null, stamp: stamp(stage, result?.score ?? null) };
       } else {
-        report.pelican = await runPelican(opts.target, { timeoutMs: Math.min(170_000, remaining - 2_000) });
+        // 画 SVG 很慢：中转站上限流时实测要 170 秒以上。给到接近整体时限的 270 秒，
+        // 但必须留出余量收尾，否则函数被平台强杀，连「超时」的响应都回不去。
+        report.pelican = await runPelican(opts.target, { timeoutMs: Math.min(PELICAN_TIMEOUT_MS, remaining - 10_000) });
         yield { type: "stage.done", stage, score: null, stamp: stamp(stage, null) };
       }
     } catch (e) {

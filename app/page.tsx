@@ -194,8 +194,9 @@ export default function Home() {
     setReport(merged);
     setTimeout(() => setPhase("done"), 900);
 
-    // 五步都有凭证、糖果全对时试着换解锁令牌；条件不满足或服务端没开彩蛋都不提示
-    if (stamps.length === STAGES.length && merged.candy?.score === 100) {
+    // 计分步骤都有凭证、糖果全对时试着换解锁令牌；鹈鹕不计分、失败不挡路。条件不满足或服务端没开彩蛋都不提示
+    const unlockStages: Stage[] = ["detect", "basic", "candy", "inference"];
+    if (stamps.length >= unlockStages.length && merged.candy?.score === 100) {
       postApi<{ token: string; expiresAt: string }>("/api/v1/unlock", config, { stamps })
         .then((unlock) => {
           patchHistory(merged.id, { unlock });
