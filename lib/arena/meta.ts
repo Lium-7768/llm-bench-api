@@ -23,21 +23,29 @@ export const TIER_WEIGHT: Record<ArenaTier, number> = {
   king: 13,
 };
 
+/** 一题得几分：全部测试通过得满分（档位分值）；部分通过按通过比例得一半；其他得 0 */
+export function pointsOf(p: Pick<ProblemResult, "tier" | "verdict" | "passedTests" | "totalTests">): number {
+  if (!p.tier) return 0;
+  const w = TIER_WEIGHT[p.tier];
+  if (p.verdict === "accepted") return w;
+  return p.totalTests ? (w * 0.5 * p.passedTests) / p.totalTests : 0;
+}
+
 /**
- * 打分：每题满分是所在档位的分值。全部测试通过得满分；部分通过按通过比例得一半；其他得 0。
- * 调用失败（error）和还没判完（pending）的题不计入。总分 = 得分 / 满分 × 100
+ * 打分：总分 = 得分 / 满分 × 100。满分是这次选中的所有题的分值之和（planned），
+ * 答错就停，后面没答到的题也算在满分里、得 0 分，所以越早被淘汰分越低。
+ * 调用失败（error）的题不计入满分。
  */
-export function arenaScore(problems: ProblemResult[]): { score: number | null; best: ArenaTier | null } {
-  let earned = 0;
-  let total = 0;
-  for (const p of problems) {
-    if (!p.tier || p.verdict === "error" || p.verdict === "pending") continue;
-    const w = TIER_WEIGHT[p.tier];
-    total += w;
-    earned += p.verdict === "accepted" ? w : p.totalTests ? (w * 0.5 * p.passedTests) / p.totalTests : 0;
-  }
+export function arenaScore(
+  problems: ProblemResult[],
+  planned: ArenaTier[] = problems.map((p) => p.tier!).filter(Boolean),
+): { score: number | null; best: ArenaTier | null } {
+  const failed = problems.filter((p) => p.verdict === "error").map((p) => p.tier!);
+  let total = planned.reduce((s, t) => s + TIER_WEIGHT[t], 0);
+  for (const t of failed) total -= TIER_WEIGHT[t];
+  const earned = problems.filter((p) => p.verdict !== "error").reduce((s, p) => s + pointsOf(p), 0);
   const solved = TIERS.filter((t) => problems.some((p) => p.tier === t && p.verdict === "accepted"));
-  return { score: total ? Math.round((earned / total) * 100) : null, best: solved.at(-1) ?? null };
+  return { score: total > 0 ? Math.round((earned / total) * 100) : null, best: solved.at(-1) ?? null };
 }
 
 export const LANGUAGE_LABEL: Record<ArenaLanguage, string> = {

@@ -254,8 +254,8 @@ export interface ArenaCatalogItem {
 }
 
 /**
- * 一次段位赛的结果。题目由用户任选（默认每档第一题），按档位分值打分：
- * 全对得满分，部分测试通过按比例得一半，调用失败的题不计入。见 lib/arena/meta.ts 的 arenaScore
+ * 一次段位赛的结果。题目由用户任选（默认每档第一题），从青铜到王者逐题测，答错就停。
+ * 按档位分值打分，没答到的题算 0 分，见 lib/arena/meta.ts 的 arenaScore
  */
 export interface ArenaResult {
   track: ArenaTrack;
@@ -264,6 +264,10 @@ export interface ArenaResult {
   score: number | null;
   /** 解出的最高档位；一题都没解出为 null */
   best: ArenaTier | null;
+  /** 这次选中的题（按出场顺序）；答错就停，后面的不再测 */
+  planned?: string[];
+  /** 在哪道题被淘汰（答错）；全部通过或主动结束时没有 */
+  eliminatedAt?: string;
   problems: ProblemResult[];
   startedAt: string;
 }
