@@ -241,7 +241,18 @@ export interface ProblemResult {
   latencyMs: number;
   /** 跑完的测试里最慢的一组程序用时 */
   slowestMs?: number;
+  /** 每组测试的结果，按顺序 */
+  tests?: TestMark[];
+  /** verdict 为 error 时出错的环节：model 被测接口报错；network 连接中断；judge 判题服务不可用 */
+  errorKind?: "model" | "network" | "judge";
   usage?: Usage;
+}
+
+/** 一组测试的结果；running 表示还在排队或运行（只出现在判题进度里） */
+export interface TestMark {
+  verdict: "accepted" | "wrong_answer" | "time_limit" | "runtime_error" | "compile_error" | "running";
+  /** 程序用时（已扣除运行环境启动），毫秒 */
+  ms?: number;
 }
 
 /** 题目目录里的一项（不含题面和测试） */

@@ -79,9 +79,7 @@ export default function ComparePage() {
                 onClick={() => toggle(r.id)}
                 className={cx(
                   "flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition",
-                  on
-                    ? "border-violet/70 bg-violet/15 shadow-[0_0_20px_-8px_rgb(139_92_246/0.9)]"
-                    : "border-line text-readout hover:text-ink",
+                  on ? "border-ink bg-tint" : "border-line text-readout hover:text-ink",
                 )}
               >
                 <span
@@ -106,7 +104,7 @@ export default function ComparePage() {
         open={matrix}
         onClose={() => setMatrix(false)}
         title="逐题对比"
-        icon={<ListChecks size={18} className="text-violet" />}
+        icon={<ListChecks size={18} className="text-ink" />}
         wide
       >
         <QuestionMatrix runs={runs} />
@@ -151,12 +149,9 @@ function ScoreRow({
         return (
           <td
             key={runs[i].id}
-            className={cx(
-              "px-4 py-3 font-display tabular-nums",
-              best && "bg-gradient-to-r from-violet/20 to-transparent",
-            )}
+            className={cx("px-4 py-3 font-display tabular-nums", best && "bg-gradient-to-r from-tint-2 to-transparent")}
           >
-            <span className={best ? "spectrum-text font-bold" : ""}>{v === null ? "—" : Math.round(v)}</span>
+            <span className={best ? "font-bold spectrum-text" : ""}>{v === null ? "—" : Math.round(v)}</span>
           </td>
         );
       })}

@@ -119,7 +119,7 @@ function Node({ stage, idle, onToggle }: { stage: PipelineStage; idle?: boolean;
         style={
           status === "done"
             ? { background: `linear-gradient(135deg, ${info.hex}, #2563eb)`, boxShadow: `0 8px 24px -8px ${info.hex}` }
-            : { boxShadow: "0 2px 10px -4px rgb(15 20 48 / .15)" }
+            : { boxShadow: "0 2px 10px -4px rgb(0 0 0 / .15)" }
         }
         animate={status === "active" ? { scale: [1, 1.06, 1] } : { scale: 1 }}
         transition={
@@ -194,7 +194,7 @@ function Caption({ stage }: { stage: PipelineStage }) {
         )}
       >
         {stage.status === "done" && score !== null ? (
-          <span className="spectrum-text font-display text-base font-bold">{Math.round(score)}</span>
+          <span className="font-display text-base font-bold spectrum-text">{Math.round(score)}</span>
         ) : (
           stage.caption
         )}

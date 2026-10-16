@@ -170,15 +170,20 @@ const PRELUDE = String.raw`(() => {
     await T.wait(50);
     let passed = 0;
     let failure = null;
+    const results = [];
+    post({ nonce, progress: results.slice(), total: tests.length }, "*");
     for (let i = 0; i < tests.length; i++) {
       try {
         await tests[i][1](T);
         passed++;
+        results.push(true);
       } catch (e) {
+        results.push(false);
         if (!failure) failure = { index: i + 1, name: tests[i][0], message: String((e && e.message) || e) };
       }
+      post({ nonce, progress: results.slice(), total: tests.length }, "*");
     }
-    post({ nonce, passed, total: tests.length, failure, errors: errors.slice(0, 3) }, "*");
+    post({ nonce, passed, total: tests.length, failure, results, errors: errors.slice(0, 3) }, "*");
   };
 })();`;
 
@@ -217,7 +222,15 @@ export interface UiOutcome {
   passed: number;
   total: number;
   failure: { index: number; name: string; message: string } | null;
+  /** 每项检查是否通过，按顺序 */
+  results: boolean[];
   errors: string[];
+}
+
+/** 测试进行中：已经跑完的检查是否通过 */
+export interface UiProgress {
+  progress: boolean[];
+  total: number;
 }
 
 /** iframe 的实际尺寸：页面按这个视口布局，展示时再缩放 */
@@ -233,6 +246,7 @@ export function runUiTest(
   test: string,
   host: HTMLElement,
   timeoutMs = 20_000,
+  onProgress?: (p: UiProgress) => void,
 ): Promise<UiOutcome | "timeout"> {
   return new Promise((resolve) => {
     const nonce = crypto.randomUUID();
@@ -251,7 +265,9 @@ export function runUiTest(
       resolve(result);
     };
     const onMessage = (e: MessageEvent) => {
-      if (e.source === frame.contentWindow && e.data?.nonce === nonce) done(e.data as UiOutcome);
+      if (e.source !== frame.contentWindow || e.data?.nonce !== nonce) return;
+      if (Array.isArray(e.data.progress)) onProgress?.(e.data as UiProgress);
+      else done(e.data as UiOutcome);
     };
     const timer = setTimeout(() => done("timeout"), timeoutMs);
     window.addEventListener("message", onMessage);

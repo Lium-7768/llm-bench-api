@@ -78,13 +78,13 @@ export function ConfigPanel() {
               onClick={() => update({ protocol: p })}
               className={cx(
                 "relative flex-1 rounded-lg px-2 py-1.5 text-xs font-medium whitespace-nowrap transition-colors",
-                config.protocol === p ? "text-violet" : "text-readout hover:text-ink",
+                config.protocol === p ? "text-ink" : "text-readout hover:text-ink",
               )}
             >
               {config.protocol === p && (
                 <motion.span
                   layoutId="protocol-pill"
-                  className="absolute inset-0 rounded-lg bg-surface shadow-[0_1px_3px_rgb(15_20_48/0.12),0_0_0_1px_rgb(124_58_237/0.25)]"
+                  className="absolute inset-0 rounded-lg bg-surface shadow-[0_1px_3px_rgb(0_0_0/0.12),0_0_0_1px_rgb(0_0_0/0.08)]"
                   transition={{ type: "spring", stiffness: 500, damping: 34 }}
                 />
               )}
@@ -178,7 +178,7 @@ export function ConfigPanel() {
       <label className="flex cursor-pointer items-center gap-2.5 text-xs text-readout sm:col-span-2">
         <input
           type="checkbox"
-          className="size-4 accent-violet"
+          className="size-4 accent-ink"
           checked={config.rememberKey}
           onChange={(e) => update({ rememberKey: e.target.checked })}
         />

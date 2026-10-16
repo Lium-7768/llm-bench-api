@@ -32,7 +32,7 @@ export function IconButton({
 }: Omit<ComponentProps<"button">, "children"> & {
   label: string;
   icon: ReactNode;
-  tone?: "default" | "danger" | "ghost";
+  tone?: "default" | "primary" | "danger" | "ghost";
   size?: "sm" | "md";
 }) {
   const [tipRef, tipOpen, tipHandlers] = useTip<HTMLButtonElement>();
@@ -45,11 +45,13 @@ export function IconButton({
         className={cx(
           "inline-grid shrink-0 place-items-center rounded-xl border transition active:scale-95 disabled:pointer-events-none disabled:opacity-35",
           size === "sm" ? "size-8" : "size-10",
-          tone === "danger"
-            ? "border-rose/25 bg-rose/6 text-rose hover:bg-rose/12"
-            : tone === "ghost"
-              ? "border-transparent text-readout hover:bg-tint hover:text-ink"
-              : "border-line bg-surface text-ink shadow-[0_1px_2px_rgb(15_20_48/0.06)] hover:border-violet/40 hover:bg-violet/6 hover:text-violet",
+          tone === "primary"
+            ? "border-ink bg-ink text-surface hover:bg-ink/85"
+            : tone === "danger"
+              ? "border-rose/25 bg-rose/6 text-rose hover:bg-rose/12"
+              : tone === "ghost"
+                ? "border-transparent text-readout hover:bg-tint hover:text-ink"
+                : "border-line bg-surface text-ink shadow-[0_1px_2px_rgb(0_0_0/0.06)] hover:border-ink/25 hover:bg-tint hover:text-ink",
           className,
         )}
         onClick={(e) => {
@@ -75,7 +77,7 @@ export function IconLink({ href, label, icon }: { href: string; label: string; i
         ref={tipRef}
         href={href}
         aria-label={label}
-        className="inline-grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface text-ink shadow-[0_1px_2px_rgb(15_20_48/0.06)] transition hover:border-violet/40 hover:bg-violet/6 hover:text-violet"
+        className="inline-grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface text-ink shadow-[0_1px_2px_rgb(0_0_0/0.06)] transition hover:border-ink/25 hover:bg-tint hover:text-ink"
         {...tipHandlers}
       >
         {icon}
@@ -115,7 +117,7 @@ export function Modal({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cx(
-        "m-auto max-h-[88vh] w-[calc(100%-2rem)] overflow-hidden rounded-3xl border border-line bg-surface p-0 text-ink shadow-[0_30px_100px_-24px_rgb(37_99_235/0.35)] backdrop:bg-transparent open:animate-modal",
+        "m-auto max-h-[88vh] w-[calc(100%-2rem)] overflow-hidden rounded-3xl border border-line bg-surface p-0 text-ink shadow-[0_24px_60px_-20px_rgb(0_0_0/0.3)] backdrop:bg-transparent open:animate-modal",
         wide ? "max-w-4xl" : "max-w-xl",
       )}
     >
@@ -153,7 +155,7 @@ export function Panel({ className, children, ...rest }: ComponentProps<"section"
   return (
     <section
       className={cx(
-        "rounded-3xl border border-line bg-surface/85 shadow-[0_1px_2px_rgb(15_20_48/0.04),0_16px_48px_-24px_rgb(37_99_235/0.22)] backdrop-blur-xl",
+        "rounded-3xl border border-line bg-surface/85 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_16px_40px_-28px_rgb(0_0_0/0.18)] backdrop-blur-xl",
         className,
       )}
       {...rest}
@@ -173,4 +175,4 @@ export function Field({ label, children, className }: { label: string; children:
 }
 
 export const inputClass =
-  "w-full min-w-0 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-ink outline-none transition placeholder:text-faint focus:border-violet focus:bg-surface focus:shadow-[0_0_0_4px_rgb(124_58_237/0.12)]";
+  "w-full min-w-0 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-ink outline-none transition placeholder:text-faint focus:border-ink focus:bg-surface focus:shadow-[0_0_0_4px_rgb(23_23_23/0.08)]";

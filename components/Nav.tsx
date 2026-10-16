@@ -19,7 +19,7 @@ export function Nav() {
       <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-4 px-4 py-2 sm:gap-6 sm:px-6">
         <div className="flex min-w-0 flex-col gap-0.5">
           <Link href="/" className="flex items-center gap-2.5 font-display text-base font-semibold">
-            <span className="grid size-7 shrink-0 animate-flow place-items-center rounded-lg spectrum-bg shadow-[0_4px_14px_-2px_rgb(124_58_237/0.5)]">
+            <span className="grid size-7 shrink-0 animate-flow place-items-center rounded-lg spectrum-bg shadow-[0_4px_12px_-4px_rgb(0_0_0/0.35)]">
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
                 <path
                   d="M3 18V12M7 18V7M11 18V10M15 18V4M19 18V9"

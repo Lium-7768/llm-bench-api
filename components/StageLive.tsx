@@ -236,7 +236,7 @@ function AnswersLive({ plan, answers }: { plan: StagePlan; answers: Record<strin
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
-              className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_6px_20px_-14px_rgb(37_99_235/0.4)]"
+              className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_6px_20px_-14px_rgb(0_0_0/0.2)]"
             >
               <Pill tone={a.errored ? "muted" : a.passed ? "pass" : "fail"}>
                 {a.errored ? "失败" : a.passed ? "通过" : "答错"}

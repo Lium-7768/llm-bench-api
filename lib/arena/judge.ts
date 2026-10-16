@@ -1,4 +1,4 @@
-import type { ArenaLanguage, ProblemVerdict } from "../types";
+import type { ArenaLanguage, ProblemVerdict, TestMark } from "../types";
 import type { TestCase } from "./problems";
 
 /**
@@ -70,6 +70,7 @@ export interface JudgeOutcome {
   detail?: string;
   /** 跑完的测试里最慢的一组用时（已扣除启动耗时） */
   slowestMs?: number;
+  tests: TestMark[];
 }
 
 interface Submission {
@@ -123,6 +124,8 @@ export async function judge(
   code: string,
   tests: TestCase[],
   timeoutMs: number,
+  /** 每次轮询后回调各组测试的进度，网页用它逐格显示结果 */
+  onProgress?: (tests: TestMark[]) => void,
 ): Promise<JudgeOutcome> {
   const signal = AbortSignal.timeout(timeoutMs);
   const lang = LANGUAGES[language];
@@ -148,6 +151,7 @@ export async function judge(
   if (rejected) throw new JudgeUnavailable(`判题服务拒绝了提交：${clip(JSON.stringify(rejected), 200)}`);
 
   let results: Submission[];
+  let empty: Submission;
   for (;;) {
     await new Promise((r) => setTimeout(r, 1500));
     const got = (await call(
@@ -155,23 +159,48 @@ export async function judge(
       {},
       signal,
     )) as { submissions: Submission[] };
-    results = got.submissions;
+    results = got.submissions.slice(0, -1);
+    empty = got.submissions.at(-1)!;
     // 1 排队中，2 运行中
-    if (results.every((s) => s.status_id > 2)) break;
+    const finished = got.submissions.every((s) => s.status_id > 2);
+    if (finished) break;
+    // 判超时要扣启动耗时，空程序跑完之前先都当作还在运行
+    if (onProgress) {
+      const startup = empty.status_id > 2 ? startupOf(empty) : null;
+      onProgress(
+        results.map((s, i) => {
+          if (startup === null || s.status_id <= 2) return { verdict: "running" };
+          try {
+            return markOf(s, classify(s, tests[i], startup, lang.limit), startup);
+          } catch {
+            return { verdict: "running" };
+          }
+        }),
+      );
+    }
   }
 
-  const empty = results.pop()!;
-  const startup = empty.status_id === 3 ? Number(empty.time ?? 0) : 0;
+  const startup = startupOf(empty);
   let passed = 0;
-  let first: JudgeOutcome | undefined;
-  results.forEach((s, i) => {
+  let first: Omit<JudgeOutcome, "tests"> | undefined;
+  const marks = results.map((s, i) => {
     const outcome = classify(s, tests[i], startup, lang.limit);
     if (!outcome) passed++;
     else first ??= { ...outcome, failedTest: i + 1, passedTests: 0 };
+    return markOf(s, outcome, startup);
   });
   const ran = results.filter((s) => s.status_id === 3).map((s) => Number(s.time ?? 0) - startup);
   const slowestMs = ran.length ? Math.max(0, Math.round(Math.max(...ran) * 1000)) : undefined;
-  return first ? { ...first, passedTests: passed, slowestMs } : { verdict: "accepted", passedTests: passed, slowestMs };
+  return first
+    ? { ...first, passedTests: passed, slowestMs, tests: marks }
+    : { verdict: "accepted", passedTests: passed, slowestMs, tests: marks };
+}
+
+const startupOf = (empty: Submission) => (empty.status_id === 3 ? Number(empty.time ?? 0) : 0);
+
+function markOf(s: Submission, outcome: ReturnType<typeof classify>, startup: number): TestMark {
+  const ms = s.time === null ? undefined : Math.max(0, Math.round((Number(s.time) - startup) * 1000));
+  return { verdict: outcome?.verdict ?? "accepted", ms };
 }
 
 function classify(
@@ -179,7 +208,7 @@ function classify(
   test: TestCase,
   startup: number,
   limit: number,
-): Omit<JudgeOutcome, "passedTests"> | null {
+): { verdict: Exclude<TestMark["verdict"], "accepted" | "running">; detail?: string } | null {
   // 13 内部错误、14 执行格式错误：判题服务的问题，不算模型的错
   if (s.status_id === 13 || s.status_id === 14) throw new JudgeUnavailable("判题服务内部错误");
   if (s.status_id === 6) return { verdict: "compile_error", detail: clip(dec(s.compile_output)) };

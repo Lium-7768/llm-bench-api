@@ -139,7 +139,7 @@ pnpm release:patch    # 或 release:minor / release:major
 
 视觉方向记录在项目内的 `.claude/skills/frontend-design`（来自 [anthropics/skills](https://github.com/anthropics/skills)，Apache-2.0），在 Claude Code 中改 UI 时会自动参考。
 
-- 亮色主题：冷白底色，光谱渐变（紫、蓝、青、绿）只用在进度、分数这类信号上
+- 亮色主题，中性灰单色：界面本身不带颜色，彩色只用于状态（通过、存疑、失败、进行中）和五个步骤的标识
 - 运行时：四个步骤排成横向管道，光束沿连线流向当前步骤，当前节点有脉冲光晕、旋转流光和步内进度环；下方面板实时展示当前步骤，切换步骤时有模糊过渡
 - 交互：按钮尽量只用图标，悬停时显示文字提示；配置、明细、确认操作都放在弹窗里
 - 字体：Unbounded 用于标题和数字，JetBrains Mono 只用于日志，字体文件随项目打包

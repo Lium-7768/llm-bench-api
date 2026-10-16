@@ -1,6 +1,6 @@
 import { channel } from "../channel";
-import { chatLong, UpstreamTimeout } from "../llm";
-import type { ArenaCatalogItem, ArenaLanguage, ArenaTier, ArenaTrack, ProblemResult, Target } from "../types";
+import { chatLong, UpstreamError, UpstreamTimeout } from "../llm";
+import type { ArenaCatalogItem, ArenaLanguage, ArenaTier, ArenaTrack, ProblemResult, Target, TestMark } from "../types";
 import { assemble, type LogicProblem } from "./frontend/logic";
 import { frontendProblemsOf, logicTestsOf, type FrontendProblem } from "./frontend/problems";
 import type { UiProblem } from "./frontend/ui";
@@ -10,8 +10,12 @@ import { problemsOf, testsOf, type Problem, type TestCase } from "./problems";
 
 export type ArenaEvent =
   | { type: "start"; problems: Array<{ id: string; tier: ArenaTier; title: string; tags: string[] }> }
-  /** 模型交卷，开始判题 */
-  | { type: "problem.code"; id: string; code: string }
+  /** 模型正在写：回答的增量文本（攒一小段再发） */
+  | { type: "problem.text"; id: string; text: string }
+  /** 模型交卷，开始判题；total 是隐藏测试组数，limit 是每组的运行时限（秒） */
+  | { type: "problem.code"; id: string; code: string; total: number; limit: number }
+  /** 判题进度：各组测试的当前结果 */
+  | { type: "problem.tests"; id: string; tests: TestMark[] }
   /** 前端赛道的 UI 题：页面和隐藏测试交给浏览器判定 */
   | { type: "problem.ui"; id: string; html: string; test: string }
   | { type: "problem.done"; result: ProblemResult }
@@ -138,13 +142,32 @@ export async function* runProblems(opts: RunOptions): AsyncGenerator<ArenaEvent>
   const results: ProblemResult[] = [];
   Promise.all(
     problems.map(async (p) => {
-      const onCode = (code: string) => events.push({ type: "problem.code", id: p.id, code });
-      const r =
-        "kind" in p
-          ? await solveFrontend(p, opts, deadline, onCode, (html) =>
-              events.push({ type: "problem.ui", id: p.id, html, test: (p as UiProblem).test }),
-            )
-          : await solve(p, opts, deadline, onCode);
+      // 增量文本攒 150ms 发一次，避免一个字一个事件
+      let pending = "";
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const flush = () => {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        if (pending) events.push({ type: "problem.text", id: p.id, text: pending });
+        pending = "";
+      };
+      const hooks: Hooks = {
+        text: (t) => {
+          pending += t;
+          timer ??= setTimeout(flush, 150);
+        },
+        code: (code, total, limit) => {
+          flush();
+          events.push({ type: "problem.code", id: p.id, code, total, limit });
+        },
+        tests: (tests) => events.push({ type: "problem.tests", id: p.id, tests }),
+        page: (html) => {
+          flush();
+          events.push({ type: "problem.ui", id: p.id, html, test: (p as UiProblem).test });
+        },
+      };
+      const r = "kind" in p ? await solveFrontend(p, opts, deadline, hooks) : await solve(p, opts, deadline, hooks);
+      flush();
       results.push({ ...r, tier: p.tier });
       events.push({ type: "problem.done", result: { ...r, tier: p.tier } });
     }),
@@ -154,12 +177,21 @@ export async function* runProblems(opts: RunOptions): AsyncGenerator<ArenaEvent>
   yield { type: "result", problems: problems.map((p) => results.find((r) => r.id === p.id)!) };
 }
 
-async function solve(
-  p: Problem,
-  opts: RunOptions,
-  deadline: number,
-  onCode: (code: string) => void,
-): Promise<ProblemResult> {
+interface Hooks {
+  text: (delta: string) => void;
+  code: (code: string, total: number, limit: number) => void;
+  tests: (tests: TestMark[]) => void;
+  page: (html: string) => void;
+}
+
+/** 调用失败分两种：上游给了 HTTP 错误是接口报错，连不上、断开算网络错误 */
+const callError = (e: unknown) => ({
+  verdict: "error" as const,
+  errorKind: e instanceof UpstreamError && e.status > 0 ? ("model" as const) : ("network" as const),
+  detail: `模型调用失败：${(e as Error).message}`,
+});
+
+async function solve(p: Problem, opts: RunOptions, deadline: number, hooks: Hooks): Promise<ProblemResult> {
   const tests = testsOf(p);
   const base = { id: p.id, title: p.title, passedTests: 0, totalTests: tests.length, code: "", latencyMs: 0 };
   let res;
@@ -171,21 +203,22 @@ async function solve(
       maxTokens: opts.target.protocol === "anthropic" ? 8192 : undefined,
       // 能给多少给多少（约 225 秒）：难题上思考型模型要想两三分钟
       timeoutMs: Math.max(5_000, deadline - Date.now() - JUDGE_MS),
+      onText: hooks.text,
     });
   } catch (e) {
     // 时限内没交卷算模型没做出来（和比赛一样）；连不上、HTTP 错误才算调用失败，可以重试
     if (e instanceof UpstreamTimeout) {
       return { ...base, verdict: "no_code", detail: `规定时间内没有交卷：${e.message}` };
     }
-    return { ...base, verdict: "error", detail: `模型调用失败：${(e as Error).message}` };
+    return { ...base, ...callError(e) };
   }
 
   const code = extractCode(res.text);
   const answered = { ...base, kind: "program" as const, code, latencyMs: res.latencyMs, usage: res.usage };
   if (!code) return { ...answered, verdict: "no_code", detail: "回答里没有代码" };
   if (code.length > 60_000) return { ...answered, verdict: "no_code", detail: "代码过长" };
-  onCode(code);
-  return judged(answered, () => judge(opts.language, code, tests, Math.max(5_000, deadline - Date.now())));
+  hooks.code(code, tests.length, LANGUAGES[opts.language].limit);
+  return judged(answered, () => judge(opts.language, code, tests, Math.max(5_000, deadline - Date.now()), hooks.tests));
 }
 
 async function judged(
@@ -195,7 +228,7 @@ async function judged(
   try {
     return { ...answered, ...(await run()) };
   } catch (e) {
-    if (e instanceof JudgeUnavailable) return { ...answered, verdict: "error", detail: e.message };
+    if (e instanceof JudgeUnavailable) return { ...answered, verdict: "error", errorKind: "judge", detail: e.message };
     throw e;
   }
 }
@@ -205,8 +238,7 @@ async function solveFrontend(
   p: FrontendProblem,
   opts: RunOptions,
   deadline: number,
-  onCode: (code: string) => void,
-  onPage: (html: string) => void,
+  hooks: Hooks,
 ): Promise<ProblemResult> {
   let tests: TestCase[] = [];
   if (p.kind === "function") {
@@ -218,6 +250,7 @@ async function solveFrontend(
         title: p.title,
         kind: p.kind,
         verdict: "error",
+        errorKind: "judge",
         detail: (e as Error).message,
         passedTests: 0,
         totalTests: 0,
@@ -243,11 +276,12 @@ async function solveFrontend(
       temperature: 0,
       maxTokens: opts.target.protocol === "anthropic" ? 16384 : undefined,
       timeoutMs: Math.max(5_000, deadline - Date.now() - JUDGE_MS),
+      onText: hooks.text,
     });
   } catch (e) {
     if (e instanceof UpstreamTimeout)
       return { ...base, verdict: "no_code", detail: `规定时间内没有交卷：${e.message}` };
-    return { ...base, verdict: "error", detail: `模型调用失败：${(e as Error).message}` };
+    return { ...base, ...callError(e) };
   }
 
   const code = extractCode(res.text);
@@ -255,12 +289,12 @@ async function solveFrontend(
   if (!code) return { ...answered, verdict: "no_code", detail: "回答里没有代码" };
   if (code.length > 150_000) return { ...answered, verdict: "no_code", detail: "代码过长" };
   if (p.kind === "ui") {
-    onPage(code);
+    hooks.page(code);
     return { ...answered, verdict: "pending" };
   }
-  onCode(code);
+  hooks.code(code, tests.length, LANGUAGES.javascript.limit);
   const logic = p as LogicProblem;
   return judged(answered, () =>
-    judge("javascript", assemble(logic, code), tests, Math.max(5_000, deadline - Date.now())),
+    judge("javascript", assemble(logic, code), tests, Math.max(5_000, deadline - Date.now()), hooks.tests),
   );
 }

@@ -67,7 +67,7 @@ export function SvgBadges({ result }: { result: Pick<PelicanResult, "svg" | "ana
       {result.svg &&
         (a.animated ? (
           <span
-            className="inline-flex items-center gap-1 rounded-full bg-violet/12 px-2.5 py-0.5 text-xs font-semibold text-violet"
+            className="inline-flex items-center gap-1 rounded-full bg-tint-2 px-2.5 py-0.5 text-xs font-semibold text-ink"
             title="SVG 里带动画，下面的图会动"
           >
             <Film size={12} strokeWidth={2.5} />
@@ -103,7 +103,7 @@ function ArenaLine({ label, result }: { label: string; result?: ArenaResult }) {
   if (result?.score === undefined) return null;
   return (
     <span>
-      {label} <strong className="font-display font-semibold text-violet tabular-nums">{result.score ?? "—"}</strong>
+      {label} <strong className="font-display font-semibold text-ink tabular-nums">{result.score ?? "—"}</strong>
       <span className="text-readout"> 分</span>
       {result.best && <span className="ml-1.5 text-readout">（最高解出{TIER_LABEL[result.best]}）</span>}
       {result.track !== "frontend" && <span className="ml-1 text-readout">{LANGUAGE_LABEL[result.language]}</span>}
@@ -123,7 +123,7 @@ export function ReportView({ report, actions }: { report: Report; actions?: Reac
         transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
       >
         <Panel className="relative overflow-hidden p-6 sm:p-8">
-          <div className="pointer-events-none absolute -top-40 -left-32 size-[30rem] rounded-full bg-violet/10 blur-3xl" />
+          <div className="pointer-events-none absolute -top-40 -left-32 hidden size-[30rem]" />
           <div className="relative flex flex-col items-center gap-8 sm:flex-row sm:items-center">
             <ScoreDial score={report.score} label="综合得分" size={210} />
             <div className="flex min-w-0 flex-1 flex-col gap-3 text-center sm:text-left">
@@ -362,7 +362,7 @@ function BigNumber({ value, unit }: { value: number | null; unit: string }) {
   const shown = useCountUp(value, 1400);
   return (
     <p className="flex items-baseline gap-2">
-      <strong className="spectrum-text font-display text-4xl font-bold tabular-nums">
+      <strong className="font-display text-4xl font-bold spectrum-text tabular-nums">
         {shown === null ? "—" : Math.round(shown)}
       </strong>
       <span className="text-xs text-readout">{unit}</span>

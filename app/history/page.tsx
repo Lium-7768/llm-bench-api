@@ -87,17 +87,17 @@ export default function HistoryPage() {
             </li>
           ) : (
             <li key={r.id}>
-              <Panel className="flex items-center gap-2 pr-3 transition hover:border-violet/40">
+              <Panel className="flex items-center gap-2 pr-3 transition hover:border-ink/25">
                 <button
                   type="button"
                   onClick={() => setOpen(r)}
                   aria-label={`查看 ${r.model} 的报告`}
                   className="group flex min-w-0 flex-1 items-center gap-3 py-3 pl-5 text-left"
                 >
-                  <span className="min-w-0 flex-1 truncate font-medium group-hover:text-violet">{r.model}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium group-hover:text-ink">{r.model}</span>
                   <ChevronRight
                     size={16}
-                    className="shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-violet"
+                    className="shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-ink"
                   />
                 </button>
                 <IconButton

@@ -27,6 +27,8 @@ export interface ChatRequest {
   maxTokens?: number;
   tools?: ToolDef[];
   timeoutMs?: number;
+  /** 流式请求每收到一段回答文本就回调一次（不含思考内容） */
+  onText?: (text: string) => void;
 }
 
 export interface ChatResponse {
@@ -309,6 +311,7 @@ export async function chatStream(t: Target, req: ChatRequest): Promise<StreamRes
       const { text, usage } = parseStreamEvent(t.protocol, event);
       if (usage) out.usage = { ...out.usage, ...usage };
       if (text) {
+        req.onText?.(text);
         const at = Date.now() - started;
         out.text += text;
         out.chunks += 1;

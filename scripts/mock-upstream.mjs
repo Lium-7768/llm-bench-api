@@ -6,6 +6,7 @@
  *   pnpm mock                     # 监听 4555 端口
  *   SLOW=1 pnpm mock              # 每次响应随机延迟 0.3–2.5 秒，便于观察动效
  *   EGG=1 pnpm mock               # 糖果题全答对，跑完五步能解锁编程彩蛋（服务端要配置 LLMBENCH_SECRET）
+ *   FLAKY=1 pnpm mock             # 段位赛里每隔一道题第一次作答失败（HTTP 502 或回答到一半断开），用来看重试
  *   ALLOW_PRIVATE_BASE_URL=true pnpm dev
  * 然后在页面里选「自定义 / 中转站」，地址填 http://127.0.0.1:4555/v1，密钥随意，
  * 协议选 Anthropic 时密钥需填 k。
@@ -157,11 +158,15 @@ const send = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
-/** 按间隔逐条写出 SSE 事件，模拟真实的流式输出 */
-const stream = (res, events) => {
+/** 按间隔逐条写出 SSE 事件，模拟真实的流式输出；cut 为 true 时写到一半断开连接 */
+const stream = (res, events, cut = false) => {
   res.writeHead(200, { "content-type": "text/event-stream" });
   let i = 0;
   const timer = setInterval(() => {
+    if (cut && i >= events.length / 2) {
+      clearInterval(timer);
+      return res.destroy();
+    }
     if (i >= events.length) {
       clearInterval(timer);
       return res.end();
@@ -169,6 +174,23 @@ const stream = (res, events) => {
     res.write(events[i++]);
   }, 30);
 };
+
+/**
+ * FLAKY=1：段位赛的题按第一次出现的顺序编号，奇数号的题第一次作答失败。
+ * 1、5、9… 号返回 502（流式和退回的普通请求都失败）；3、7、11… 号流式回答到一半断开。重试就正常
+ */
+const flaky = new Map();
+function flakyFault(body) {
+  const system = body.messages?.find((m) => m.role === "system")?.content ?? "";
+  if (!process.env.FLAKY || !/编程测试|前端开发测试/.test(system)) return null;
+  const key = body.messages.at(-1).content;
+  const seen = flaky.get(key) ?? { index: flaky.size, calls: 0 };
+  seen.calls++;
+  flaky.set(key, seen);
+  if (seen.index % 2 === 0) return null;
+  if (seen.index % 4 === 1) return seen.calls <= 2 ? "502" : null;
+  return seen.calls === 1 ? "cut" : null;
+}
 
 http
   .createServer(async (req, res) => {
@@ -192,13 +214,21 @@ http
     // OpenAI 兼容
     if (url.endsWith("/chat/completions")) {
       const system = body.messages.find((m) => m.role === "system")?.content;
+      const fault = flakyFault(body);
+      if (fault === "502") return send(res, 502, { error: { message: "upstream connect error (mock)" } });
       const text = reply(body.messages.at(-1).content, system);
       if (body.stream) {
-        return stream(res, [
-          ...text.split(" ").map((w) => `data: ${JSON.stringify({ choices: [{ delta: { content: w + " " } }] })}\n\n`),
-          `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 5, completion_tokens: 9 } })}\n\n`,
-          "data: [DONE]\n\n",
-        ]);
+        return stream(
+          res,
+          [
+            ...text
+              .split(" ")
+              .map((w) => `data: ${JSON.stringify({ choices: [{ delta: { content: w + " " } }] })}\n\n`),
+            `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 5, completion_tokens: 9 } })}\n\n`,
+            "data: [DONE]\n\n",
+          ],
+          fault === "cut",
+        );
       }
       const toolCalls = body.tools
         ? [{ id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"city":"北京"}' } }]

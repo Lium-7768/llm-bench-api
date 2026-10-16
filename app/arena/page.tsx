@@ -1,8 +1,8 @@
 "use client";
 
-import { AppWindow, Check, ChevronRight, Code2, Dices, Lock, Play, RotateCcw, Square, X } from "lucide-react";
+import { AppWindow, Check, Code2, Dices, ListChecks, Play, RotateCcw, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { IconButton, Modal, Pill, cx } from "@/components/ui";
 import { previewDoc, runUiTest, SANDBOX } from "@/lib/arena/frontend/sandbox";
 import type { ArenaEvent } from "@/lib/arena/run";
@@ -17,61 +17,53 @@ import {
   TRACK_LABEL,
   VERDICT_LABEL,
 } from "@/lib/arena/meta";
-import type { ArenaCatalogItem, ArenaLanguage, ArenaResult, ArenaTier, ArenaTrack, ProblemResult } from "@/lib/types";
+import type { ArenaCatalogItem, ArenaLanguage, ArenaResult, ArenaTrack, ProblemResult, TestMark } from "@/lib/types";
 import { postApi, streamApi } from "@/lib/web/api";
 import { useConfig } from "@/lib/web/config";
 import { useEgg } from "@/lib/web/egg";
 import { formatMs } from "@/lib/web/format";
 import { patchHistory } from "@/lib/web/storage";
 
-// ---------------------------------------------------------------- 外观
-
-/** 每档的颜色：只有王者用光谱 */
-const TIER_TEXT: Record<ArenaTier, string> = {
-  bronze: "text-bronze",
-  silver: "text-silver",
-  gold: "text-gold",
-  platinum: "text-cyan",
-  diamond: "text-blue",
-  king: "text-violet",
-};
-const TIER_BG: Record<ArenaTier, string> = {
-  bronze: "bg-bronze",
-  silver: "bg-silver",
-  gold: "bg-gold",
-  platinum: "bg-cyan",
-  diamond: "bg-blue",
-  king: "spectrum-bg",
-};
-
-/** 机壳：浅铝色，上沿高光、下沿阴影，像一块压铸面板 */
-const CASING =
-  "relative rounded-[28px] border border-line bg-linear-to-b from-surface to-tint-2 p-3 shadow-[inset_0_1px_0_var(--color-surface),inset_0_-2px_0_rgb(15_20_48/0.06),0_28px_60px_-36px_rgb(15_20_48/0.6)] sm:p-4";
-/** 机壳上嵌进去的面板 */
-const PLATE = "rounded-2xl border border-line bg-surface/70 shadow-[inset_0_1px_3px_rgb(15_20_48/0.08)]";
-/** 读数窗：机器上唯一的深色部件，题目和判定都显示在这里 */
-const SCREEN =
-  "relative overflow-hidden rounded-2xl bg-ink text-surface shadow-[inset_0_2px_14px_rgb(0_0_0/0.65),0_0_0_1px_rgb(15_20_48/0.9),0_1px_0_1px_var(--color-surface)]";
-/** 读数窗上的细扫描线 */
-const SCANLINES =
-  "pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(to_bottom,rgb(255_255_255/0.035)_0_1px,transparent_1px_3px)]";
-
 // ---------------------------------------------------------------- 状态
 
-/** queued 待测；writing 写代码；judging 判题服务判题；browser 浏览器里测页面；done 出结果 */
+/** queued 待测；writing 模型作答；judging 判题服务判题；browser 浏览器里测页面；done 出结果 */
 type Phase = "queued" | "writing" | "judging" | "browser" | "done";
 
-type ProblemState = ArenaCatalogItem & { phase: Phase } & Partial<
+type ProblemState = ArenaCatalogItem & {
+  phase: Phase;
+  /** 模型边写边推过来的回答原文 */
+  text?: string;
+  /** 每组测试的运行时限，秒 */
+  limit?: number;
+  /** 开始作答、开始判题的时刻，用来显示计时 */
+  writeAt?: number;
+  judgeAt?: number;
+  judgeMs?: number;
+} & Partial<
     Pick<
       ProblemResult,
-      "verdict" | "passedTests" | "totalTests" | "failedTest" | "detail" | "code" | "latencyMs" | "slowestMs" | "usage"
+      | "verdict"
+      | "passedTests"
+      | "totalTests"
+      | "failedTest"
+      | "detail"
+      | "code"
+      | "latencyMs"
+      | "slowestMs"
+      | "usage"
+      | "tests"
+      | "errorKind"
     >
   >;
 
-/** idle 装题；running 测试中；paused 等用户决定（过关后暂停，或调用失败）；done 出成绩 */
+/** 运行记录的一行：每次作答一行，调用失败后重试会多出一行 */
+type LogEntry = ProblemState & { key: number; index: number; tries: number };
+
+/** idle 选题；running 测试中；paused 等用户决定（过关后暂停，或调用失败）；done 出成绩 */
 type MachinePhase = "idle" | "running" | "paused" | "done";
 type Pause = { reason: "next" | "error"; id: string } | null;
 type Ending = "cleared" | "eliminated" | "stopped";
+type Tone = "wait" | "run" | "ok" | "bad" | "warn";
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -88,6 +80,8 @@ const toResult = (p: ProblemState): ProblemResult => ({
   code: p.code ?? "",
   latencyMs: p.latencyMs ?? 0,
   slowestMs: p.slowestMs,
+  tests: p.tests,
+  errorKind: p.errorKind,
   usage: p.usage,
 });
 
@@ -99,19 +93,53 @@ const scoreOf = (p: Pick<ProblemState, "tier" | "verdict" | "passedTests" | "tot
     totalTests: p.totalTests ?? 0,
   });
 
+const toneOf = (p: ProblemState | undefined, current: boolean): Tone =>
+  !p?.verdict ? (current ? "run" : "wait") : p.verdict === "accepted" ? "ok" : p.verdict === "error" ? "warn" : "bad";
+
+/** 调用失败的三种来源：都不是模型答错，可以重试 */
+const FAULT: Record<NonNullable<ProblemResult["errorKind"]>, { label: string; why: string }> = {
+  model: { label: "模型接口报错", why: "被测接口这次没有给出回答。" },
+  network: { label: "网络错误", why: "连接中途断开，回答没有收完整。" },
+  judge: { label: "判题服务不可用", why: "代码已经交了，是判题服务这边出了问题。" },
+};
+
+const FILE: Record<ArenaLanguage, string> = {
+  python: "solution.py",
+  javascript: "solution.js",
+  java: "Main.java",
+  go: "main.go",
+};
+
 /** 把浏览器里的测试结果换成和服务端一样的结果字段 */
-async function judgeInBrowser(html: string, test: string, host: HTMLElement): Promise<Partial<ProblemState>> {
-  const outcome = await runUiTest(html, test, host);
+async function judgeInBrowser(
+  html: string,
+  test: string,
+  host: HTMLElement,
+  onProgress: (tests: TestMark[], total: number) => void,
+): Promise<Partial<ProblemState>> {
+  const marks = (r: boolean[]): TestMark[] => r.map((ok) => ({ verdict: ok ? "accepted" : "wrong_answer" }));
+  const outcome = await runUiTest(html, test, host, undefined, (p) => onProgress(marks(p.progress), p.total));
   if (outcome === "timeout") return { verdict: "time_limit", detail: "页面测试 20 秒内没有跑完" };
   const errors = outcome.errors.length ? `\n页面报错：${outcome.errors.join("；")}` : "";
   const f = outcome.failure;
   return {
     passedTests: outcome.passed,
     totalTests: outcome.total,
+    tests: marks(outcome.results),
     verdict: f ? "wrong_answer" : "accepted",
     failedTest: f?.index,
     detail: f ? `第 ${f.index} 项「${f.name}」：${f.message}${errors}` : undefined,
   };
+}
+
+/** 模型还在写的时候，从回答原文里取出正在写的代码：去掉思考内容和代码块标记 */
+function liveCode(text: string): string {
+  const t = text.replace(/<think>[\s\S]*?(<\/think>|$)/g, "");
+  const open = t.match(/```[^\n`]*\n/);
+  if (!open) return t.trimStart();
+  const body = t.slice(open.index! + open[0].length);
+  const close = body.indexOf("```");
+  return close >= 0 ? body.slice(0, close) : body;
 }
 
 // ---------------------------------------------------------------- 页面
@@ -128,11 +156,15 @@ export default function ArenaPage() {
   const [phase, setPhase] = useState<MachinePhase>("idle");
   const [queue, setQueue] = useState<string[]>([]);
   const [state, setState] = useState<Record<string, ProblemState>>({});
+  const [log, setLog] = useState<LogEntry[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [tries, setTries] = useState(1);
   const [pause, setPause] = useState<Pause>(null);
   const [ending, setEnding] = useState<Ending | null>(null);
   const [final, setFinal] = useState<ArenaResult | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [clock, setClock] = useState<{ from: number; to: number | null } | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [openKey, setOpenKey] = useState<number | null>(null);
   const [view, setView] = useState<"page" | "code">("page");
   const stage = useRef<HTMLDivElement>(null);
   const decide = useRef<((choice: "go" | "retry" | "stop") => void) | null>(null);
@@ -164,11 +196,13 @@ export default function ArenaPage() {
   const idle = phase === "idle";
   // 出场顺序：青铜到王者，同一档按目录顺序
   const order = idle ? items.filter((p) => chosen.includes(p.id)).map((p) => p.id) : queue;
-  const plannedTiers = order.map((id) => items.find((p) => p.id === id)!.tier);
+  const byId = (id: string) => items.find((p) => p.id === id)!;
+  const plannedTiers = order.map((id) => byId(id).tier);
   const fullMarks = plannedTiers.reduce((s, t) => s + TIER_WEIGHT[t], 0);
   const attempted = order.map((id) => state[id]).filter((p): p is ProblemState => !!p?.verdict);
   const live = arenaScore(attempted.map(toResult), plannedTiers);
   const current = currentId ? state[currentId] : null;
+  const currentIndex = current ? order.indexOf(current.id) : -1;
 
   const toggle = (id: string) =>
     setPicked((all) => {
@@ -179,14 +213,29 @@ export default function ArenaPage() {
   const patchProblem = (id: string, change: Partial<ProblemState>) =>
     setState((all) => ({ ...all, [id]: { ...all[id], ...change } }));
 
-  /** 跑一道题：模型作答，逻辑 / 程序题交给判题服务，页面题在读数窗里的隔离窗口测 */
+  /** 跑一道题：模型作答，逻辑 / 程序题交给判题服务，页面题在判题面板里的隔离窗口测 */
   const attempt = async (item: ArenaCatalogItem): Promise<ProblemState> => {
     let result: ProblemState = { ...item, phase: "writing" };
     const set = (change: Partial<ProblemState>) => {
       result = { ...result, ...change };
       patchProblem(item.id, change);
     };
-    set({ phase: "writing", verdict: undefined, detail: undefined, code: undefined });
+    set({
+      phase: "writing",
+      writeAt: Date.now(),
+      text: "",
+      code: undefined,
+      verdict: undefined,
+      detail: undefined,
+      errorKind: undefined,
+      tests: undefined,
+      totalTests: undefined,
+      passedTests: undefined,
+      judgeAt: undefined,
+      judgeMs: undefined,
+    });
+    const judged = (change: Partial<ProblemState>) =>
+      set({ ...change, phase: "done", judgeMs: result.judgeAt ? Date.now() - result.judgeAt : undefined });
     let browser: Promise<void> | null = null;
     try {
       await streamApi<ArenaEvent>(
@@ -194,25 +243,39 @@ export default function ArenaPage() {
         config,
         { token: egg.token, track, language: lang, problems: [item.id] },
         (e) => {
-          if (e.type === "problem.code") set({ phase: "judging", code: e.code });
+          if (e.type === "problem.text") set({ text: (result.text ?? "") + e.text });
+          else if (e.type === "problem.code")
+            set({
+              phase: "judging",
+              code: e.code,
+              totalTests: e.total,
+              limit: e.limit,
+              judgeAt: Date.now(),
+              tests: [],
+            });
+          else if (e.type === "problem.tests") set({ tests: e.tests });
           else if (e.type === "problem.ui") {
-            set({ phase: "browser", code: e.html });
-            // 等读数窗把测试台渲染出来：判题窗口必须在可视区域里，浏览器才不会暂停它
+            set({ phase: "browser", code: e.html, judgeAt: Date.now(), tests: [] });
+            // 等判题面板把测试台渲染出来：判题窗口必须在可视区域里，浏览器才不会暂停它
             browser = new Promise<void>((r) => setTimeout(r, 60))
-              .then(() => judgeInBrowser(e.html, e.test, stage.current ?? document.body))
-              .then((r) => set({ ...r, phase: "done" }));
+              .then(() =>
+                judgeInBrowser(e.html, e.test, stage.current ?? document.body, (tests, total) =>
+                  set({ tests, totalTests: total }),
+                ),
+              )
+              .then(judged);
           } else if (e.type === "problem.done") {
             if (e.result.verdict === "pending") set({ latencyMs: e.result.latencyMs, usage: e.result.usage });
-            else set({ ...e.result, phase: "done" });
+            else judged(e.result);
           }
         },
       );
     } catch (e) {
       const message = e instanceof TypeError ? "和本站的连接中断了" : (e as Error).message;
-      if (!result.verdict) set({ verdict: "error", detail: message, phase: "done" });
+      if (!result.verdict) set({ verdict: "error", errorKind: "network", detail: message, phase: "done" });
     }
     if (browser) await browser;
-    if (!result.verdict) set({ verdict: "error", detail: "没有收到判题结果", phase: "done" });
+    if (!result.verdict) set({ verdict: "error", errorKind: "network", detail: "没有收到判题结果", phase: "done" });
     return result;
   };
 
@@ -229,23 +292,32 @@ export default function ArenaPage() {
     startedAt.current = new Date().toISOString();
     setQueue(list.map((p) => p.id));
     setState(Object.fromEntries(list.map((p) => [p.id, { ...p, phase: "queued" }])));
+    setLog([]);
     setFinal(null);
     setEnding(null);
+    setClock({ from: Date.now(), to: null });
     setPhase("running");
 
+    const record = (r: ProblemState, index: number, n: number) =>
+      setLog((all) => [...all, { ...r, key: all.length, index, tries: n }]);
     const results: ProblemState[] = [];
     let end: Ending = "cleared";
     let eliminatedAt: string | undefined;
     for (let i = 0; i < list.length; i++) {
       const item = list[i];
       setCurrentId(item.id);
+      let n = 1;
+      setTries(n);
       let r = await attempt(item);
+      record(r, i, n);
       while (r.verdict === "error") {
         const choice = await waitFor({ reason: "error", id: item.id });
         setPause(null);
         if (choice !== "retry") break;
         setPhase("running");
+        setTries(++n);
         r = await attempt(item);
+        record(r, i, n);
       }
       results.push(r);
       if (r.verdict === "error") {
@@ -286,736 +358,1044 @@ export default function ArenaPage() {
     patchHistory(egg.reportId, track === "frontend" ? { arenaFrontend: result } : { arena: result });
     setFinal(result);
     setEnding(end);
-    setCurrentId(null);
+    setClock((c) => c && { ...c, to: Date.now() });
     setPhase("done");
   };
 
   const reset = () => {
     setState({});
     setQueue([]);
+    setLog([]);
     setFinal(null);
     setEnding(null);
+    setCurrentId(null);
+    setClock(null);
     setPhase("idle");
   };
 
-  const open = openId ? state[openId] : null;
-  const segment = (on: boolean) =>
-    cx(
-      "rounded-lg px-3 py-1.5 text-sm transition disabled:cursor-not-allowed",
-      on
-        ? "bg-ink font-semibold text-surface shadow-[inset_0_-2px_0_rgb(0_0_0/0.35)]"
-        : "text-readout enabled:hover:text-ink",
-    );
-  const tape = order.map((id) => state[id]).filter((p): p is ProblemState => !!p?.verdict);
+  const status: { tone: Tone | "idle"; text: string } =
+    phase === "idle"
+      ? { tone: "idle", text: "待开始" }
+      : phase === "paused"
+        ? { tone: "warn", text: pause?.reason === "error" ? "已暂停，等你决定" : "过关了，等你确认" }
+        : phase === "running" && current
+          ? {
+              tone: "run",
+              text: `第 ${currentIndex + 1} / ${order.length} 题，${TIER_LABEL[current.tier]}${tries > 1 ? `，第 ${tries} 次` : ""}`,
+            }
+          : ending === "cleared"
+            ? { tone: "ok", text: "全部通过" }
+            : ending === "eliminated" && final?.eliminatedAt
+              ? { tone: "bad", text: `止步${TIER_LABEL[byId(final.eliminatedAt).tier]}` }
+              : { tone: "idle", text: "已结束" };
+
+  const open = openKey === null ? null : log.find((l) => l.key === openKey);
+  const fileName = track === "frontend" ? (current?.kind === "ui" ? "index.html" : "solution.js") : FILE[lang];
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="max-w-2xl">
-        <h1 className="font-display text-3xl font-bold">编程段位赛</h1>
-        <p className="mt-2 text-sm text-readout">
-          {egg.model} 从青铜开始逐关答题，答错就停在那一关。
-          {track === "algo"
-            ? "每道题写完整程序，交给开源判题服务 Judge0 跑隐藏测试。"
-            : "逻辑题交给 Judge0 运行；页面题让模型写出完整网页，在读数窗里的隔离窗口中模拟点击、输入和键盘操作来检查。"}
-          不计入综合分。
-        </p>
+    <div className="flex flex-col gap-4">
+      {/* 顶栏：谁在答、什么状态、得几分 */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm">
+          <h1 className="text-base font-semibold">编程段位赛</h1>
+          <span className="text-faint">/</span>
+          <span className="max-w-[16rem] truncate">{egg.model}</span>
+          <span className="text-faint">/</span>
+          <span className="text-readout">
+            {TRACK_LABEL[track]}，{track === "frontend" ? "JavaScript、HTML 和 CSS" : LANGUAGE_LABEL[lang]}
+          </span>
+        </div>
+        <StatusPill tone={status.tone}>{status.text}</StatusPill>
+        {clock && (
+          <span className="inline-flex h-6.5 items-center rounded-full border border-line bg-surface px-2.5 font-mono text-xs text-readout tabular-nums">
+            <Elapsed from={clock.from} to={clock.to} clock />
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {idle && (
+            <>
+              <IconButton
+                label={`选题和设置（已选 ${chosen.length} 题）`}
+                icon={<ListChecks size={18} />}
+                onClick={() => setPicking(true)}
+              />
+              <IconButton
+                label={chosen.length ? "开始" : "先选至少一道题"}
+                icon={<Play size={17} fill="currentColor" />}
+                disabled={!chosen.length}
+                onClick={run}
+                tone="primary"
+              />
+            </>
+          )}
+          {phase === "done" && <IconButton label="重新选题" icon={<RotateCcw size={18} />} onClick={reset} />}
+          <div className="ml-2 text-right leading-none" aria-label={idle ? "还没开始" : `得分 ${live.score ?? 0}`}>
+            <span className="font-mono text-3xl font-semibold tracking-tight tabular-nums">
+              {idle ? "—" : (live.score ?? 0)}
+            </span>
+            <span className="ml-1 text-xs text-readout">/ 100 分</span>
+          </div>
+        </div>
       </header>
 
-      <section aria-label="答题机" className={CASING}>
-        <Screws />
-
-        {/* 顶部面板：赛道、语言、暂停开关、计分轮 */}
-        <div className={cx("flex flex-wrap items-center gap-x-4 gap-y-3 px-3 py-2.5", PLATE)}>
-          <div role="radiogroup" aria-label="赛道" className="flex rounded-xl bg-tint p-1">
-            {(["algo", "frontend"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="radio"
-                aria-checked={track === t}
-                disabled={!idle}
-                onClick={() => setTrack(t)}
-                className={segment(track === t)}
-              >
-                {TRACK_LABEL[t]}
-              </button>
-            ))}
-          </div>
-          {track === "algo" ? (
-            <div className="flex items-center gap-1.5">
-              <div role="radiogroup" aria-label="编程语言" className="flex rounded-xl bg-tint p-1">
-                {ARENA_LANGUAGES.map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    role="radio"
-                    aria-checked={language === l}
-                    disabled={!idle}
-                    onClick={() => setLanguage(l)}
-                    className={segment(language === l)}
-                  >
-                    {LANGUAGE_LABEL[l]}
-                  </button>
-                ))}
-              </div>
-              <IconButton
-                label="随机选一种语言"
-                size="sm"
-                tone="ghost"
-                icon={<Dices size={16} />}
-                disabled={!idle}
-                onClick={() => setLanguage(ARENA_LANGUAGES[Math.floor(Math.random() * ARENA_LANGUAGES.length)])}
-              />
-            </div>
-          ) : (
-            <span className="text-sm text-readout">JavaScript、HTML 和 CSS</span>
-          )}
-          <label className="flex items-center gap-2 text-sm text-readout select-none">
-            <Toggle
-              on={askEach}
-              label="每过一关暂停，由我决定是否继续"
-              disabled={phase === "running"}
-              onChange={(v) => {
-                askRef.current = v;
-                setAskEach(v);
-              }}
-            />
-            每过一关暂停
-          </label>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-xs text-readout">得分</span>
-            <Odometer value={idle ? null : (live.score ?? 0)} />
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-3 lg:grid-cols-[15rem_1fr]">
-          {/* 楼层指示：从下往上是青铜到王者，没轮到的题不显示题名 */}
-          <Floors items={items} order={order} state={state} idle={idle} currentId={currentId} ending={ending} />
-
-          <div className="flex min-w-0 flex-col gap-3">
-            {idle ? (
-              <Keyboard items={items} chosen={chosen} onToggle={toggle} />
-            ) : (
-              <Readout
-                current={current}
-                index={current ? order.indexOf(current.id) : -1}
-                total={order.length}
-                final={final}
-                ending={ending}
-                eliminated={final?.eliminatedAt ? state[final.eliminatedAt] : null}
-                stage={stage}
-              />
+      <AnimatePresence>
+        {final && ending && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={cx(
+              "rounded-lg border px-4 py-3 text-sm",
+              ending === "cleared" && "border-mint/40 bg-mint/8 text-mint",
+              ending === "eliminated" && "border-rose/40 bg-rose/6 text-rose",
+              ending === "stopped" && "border-line bg-surface",
             )}
+          >
+            <Ended final={final} ending={ending} state={state} order={order} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            {/* 控制条 */}
-            <div className={cx("flex flex-wrap items-center gap-3 px-3 py-2.5", PLATE)}>
-              {idle && (
-                <>
-                  <p className="text-sm">
-                    装入 <strong className="font-display tabular-nums">{chosen.length}</strong> 题，满分{" "}
-                    <strong className="font-display tabular-nums">{fullMarks}</strong> 分
-                  </p>
-                  <div className="flex items-center gap-1">
-                    {(
-                      [
-                        ["每档第一题", null],
-                        ["全选", items.map((p) => p.id)],
-                        ["清空", []],
-                      ] as const
-                    ).map(([label, ids]) => (
+      {/* 题目队列：按段位排好，一次只跑一道；没轮到的题不显示题名 */}
+      <ol aria-label="题目队列" className="flex overflow-x-auto rounded-xl border border-line bg-surface">
+        {order.length === 0 && <li className="px-4 py-3 text-sm text-readout">还没有选题</li>}
+        {order.map((id, i) => {
+          const p = state[id];
+          const item = byId(id);
+          const here = id === currentId && !p?.verdict;
+          const tone = idle ? "wait" : toneOf(p, here);
+          const reached = idle || !!p?.verdict || id === currentId;
+          const skipped = phase === "done" && !p?.verdict;
+          return (
+            <li
+              key={id}
+              className={cx(
+                "relative grid min-w-32 flex-1 gap-0.5 border-l border-line px-3.5 py-2.5 first:border-l-0",
+                tone === "run" && "bg-blue/6",
+                tone === "warn" && "bg-amber/8",
+                skipped && "opacity-50",
+              )}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <StateIcon tone={tone} />
+                {TIER_LABEL[item.tier]}
+                <span className="text-[11px] font-normal text-faint">{TIER_WEIGHT[item.tier]} 分</span>
+              </span>
+              <span className="truncate text-xs text-readout">
+                {reached ? item.title : `第 ${i + 1} 题`}
+                {p?.verdict &&
+                  `，${p.verdict === "accepted" ? "通过" : p.verdict === "error" ? (phase === "done" ? "调用失败，未计分" : "调用失败") : p.totalTests ? `${p.passedTests}/${p.totalTests}` : VERDICT_LABEL[p.verdict]}`}
+                {skipped && "，未作答"}
+              </span>
+              <span
+                aria-hidden
+                className={cx(
+                  "absolute inset-x-0 bottom-0 h-0.5",
+                  tone === "run" && "bg-blue",
+                  tone === "ok" && "bg-mint",
+                  tone === "bad" && "bg-rose",
+                  tone === "warn" && "bg-amber",
+                )}
+              />
+            </li>
+          );
+        })}
+      </ol>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <Editor problem={current} fileName={fileName} />
+        <JudgePanel
+          problem={current}
+          paused={phase === "paused" ? pause : null}
+          next={pause?.reason === "next" ? state[pause.id] : null}
+          stage={stage}
+          onDecide={(c) => decide.current?.(c)}
+        />
+      </div>
+
+      {/* 运行记录：每次作答一行 */}
+      <section aria-label="运行记录" className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="flex h-11 items-center gap-3 border-b border-line px-4 text-sm">
+          <h2 className="font-semibold">运行记录</h2>
+          <span className="truncate text-readout">一次只跑一道题；调用失败可以重试，答错就停</span>
+        </div>
+        {log.length === 0 ? (
+          <p className="px-4 py-7 text-center text-sm text-faint">还没有运行记录</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead className="text-left text-xs text-readout">
+                <tr className="border-b border-line">
+                  <th className="px-4 py-2.5 font-medium">#</th>
+                  <th className="px-4 py-2.5 font-medium">段位</th>
+                  <th className="px-4 py-2.5 font-medium">题目</th>
+                  <th className="px-4 py-2.5 font-medium">结论</th>
+                  <th className="px-4 py-2.5 font-medium">测试</th>
+                  <th className="px-4 py-2.5 font-medium">作答用时</th>
+                  <th className="px-4 py-2.5 text-right font-medium">得分</th>
+                </tr>
+              </thead>
+              <tbody className="tabular-nums">
+                {log.map((l) => (
+                  <tr key={l.key} className="border-b border-line last:border-b-0">
+                    <td className="px-4 py-2.5 font-mono text-xs text-faint">{String(l.index + 1).padStart(2, "0")}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{TIER_LABEL[l.tier]}</td>
+                    <td className="px-4 py-2.5">
                       <button
-                        key={label}
                         type="button"
-                        onClick={() => pick(ids ? [...ids] : null)}
-                        className="rounded-lg px-2.5 py-1 text-xs text-readout transition hover:bg-tint hover:text-ink"
+                        onClick={() => {
+                          setView(l.kind === "ui" ? "page" : "code");
+                          setOpenKey(l.key);
+                        }}
+                        className="text-left whitespace-nowrap underline decoration-line underline-offset-4 transition hover:decoration-ink"
                       >
-                        {label}
+                        {l.title}
                       </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {phase === "running" && current && (
-                <p className="text-sm text-readout">正在测第 {order.indexOf(current.id) + 1} 关，答错就停</p>
-              )}
-              {phase === "paused" && pause?.reason === "next" && (
-                <p className="text-sm">
-                  过关了。下一关是{" "}
-                  <strong className={TIER_TEXT[state[pause.id].tier]}>{TIER_LABEL[state[pause.id].tier]}</strong>
-                  ，继续吗？
-                </p>
-              )}
-              {phase === "paused" && pause?.reason === "error" && (
-                <p className="min-w-0 flex-1 truncate text-sm text-rose" title={state[pause.id]?.detail}>
-                  调用失败，不算答错：{state[pause.id]?.detail}
-                </p>
-              )}
-              {phase === "done" && <p className="text-sm text-readout">成绩已经存进这份报告，从历史记录里也能看到。</p>}
-
-              <div className="ml-auto flex items-center gap-2">
-                {phase === "paused" && pause?.reason === "error" && (
-                  <IconButton
-                    label="重试这一题"
-                    icon={<RotateCcw size={18} />}
-                    onClick={() => decide.current?.("retry")}
-                  />
-                )}
-                {phase === "paused" && pause?.reason === "next" && (
-                  <IconButton label="继续下一关" icon={<Play size={18} />} onClick={() => decide.current?.("go")} />
-                )}
-                {phase === "paused" && (
-                  <IconButton
-                    label="到此为止，出成绩"
-                    icon={<Square size={18} />}
-                    onClick={() => decide.current?.("stop")}
-                  />
-                )}
-                {phase === "done" && <IconButton label="重新装题" icon={<RotateCcw size={18} />} onClick={reset} />}
-                {idle && <StartButton disabled={!chosen.length} onClick={run} />}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 纸带：每答完一题打一行 */}
-      {tape.length > 0 && (
-        <section aria-label="答题记录" className="flex flex-col gap-2">
-          <h2 className="text-sm text-readout">答题记录</h2>
-          <ol className={cx("divide-y divide-dashed divide-line overflow-hidden", PLATE)}>
-            {tape.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setView(p.kind === "ui" ? "page" : "code");
-                    setOpenId(p.id);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-tint"
-                >
-                  <span className="w-6 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
-                    {order.indexOf(p.id) + 1}
-                  </span>
-                  <span className={cx("h-4 w-1 shrink-0 rounded-full", TIER_BG[p.tier])} />
-                  <span className={cx("w-10 shrink-0 font-semibold", TIER_TEXT[p.tier])}>{TIER_LABEL[p.tier]}</span>
-                  <span className="min-w-0 flex-1 truncate">{p.title}</span>
-                  <Pill
-                    tone={
-                      p.verdict === "accepted"
-                        ? "pass"
-                        : p.verdict === "error"
-                          ? "muted"
-                          : p.verdict === "time_limit"
-                            ? "warn"
-                            : "fail"
-                    }
-                  >
-                    {VERDICT_LABEL[p.verdict!]}
-                  </Pill>
-                  <span className="hidden w-20 text-right text-readout tabular-nums sm:block">
-                    {p.verdict === "error" ? "不计分" : `${round1(scoreOf(p))} / ${TIER_WEIGHT[p.tier]} 分`}
-                  </span>
-                  <span className="hidden w-16 text-right text-xs text-faint tabular-nums md:block">
-                    {p.latencyMs ? formatMs(p.latencyMs) : ""}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-
-      <Modal open={!!open} onClose={() => setOpenId(null)} title={open?.title ?? ""} wide>
-        {open && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className={cx("font-semibold", TIER_TEXT[open.tier])}>{TIER_LABEL[open.tier]}</span>
-              {open.verdict && (
-                <Pill tone={open.verdict === "accepted" ? "pass" : open.verdict === "error" ? "muted" : "fail"}>
-                  {VERDICT_LABEL[open.verdict]}
-                </Pill>
-              )}
-              {open.verdict && open.verdict !== "error" && (
-                <span className="text-readout tabular-nums">
-                  得 {round1(scoreOf(open))} / {TIER_WEIGHT[open.tier]} 分
-                </span>
-              )}
-              {!!open.totalTests && (
-                <span className="text-readout">
-                  通过 {open.passedTests}/{open.totalTests} {open.kind === "ui" ? "项检查" : "组测试"}
-                </span>
-              )}
-              {!!open.latencyMs && <span className="text-readout">作答用时 {formatMs(open.latencyMs)}</span>}
-              {open.slowestMs !== undefined && (
-                <span className="text-readout">程序最慢一组 {formatMs(open.slowestMs)}</span>
-              )}
-              {open.kind === "ui" && open.code && (
-                <div className="ml-auto flex rounded-xl border border-line p-1">
-                  <IconButton
-                    label="看页面"
-                    size="sm"
-                    tone={view === "page" ? "default" : "ghost"}
-                    icon={<AppWindow size={16} />}
-                    onClick={() => setView("page")}
-                  />
-                  <IconButton
-                    label="看代码"
-                    size="sm"
-                    tone={view === "code" ? "default" : "ghost"}
-                    icon={<Code2 size={16} />}
-                    onClick={() => setView("code")}
-                  />
-                </div>
-              )}
-            </div>
-            {open.detail && (
-              <pre className="max-h-48 overflow-auto rounded-xl bg-rose/6 p-3 font-mono text-xs whitespace-pre-wrap text-rose">
-                {open.detail}
-              </pre>
-            )}
-            {open.code &&
-              (open.kind === "ui" && view === "page" ? (
-                // 模型写的页面只能放进隔离的 iframe：读不到本站数据，也不能联网
-                <iframe
-                  title={`${open.title}：模型做的页面`}
-                  sandbox={SANDBOX}
-                  srcDoc={previewDoc(open.code)}
-                  className="h-[60vh] w-full rounded-xl border border-line bg-white"
-                />
-              ) : (
-                <pre className="max-h-[60vh] overflow-auto rounded-xl bg-tint p-4 font-mono text-xs leading-relaxed [font-variant-ligatures:none]">
-                  {open.code}
-                </pre>
-              ))}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Verdict entry={l} />
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs">
+                      {l.totalTests && l.verdict !== "error" ? `${l.passedTests}/${l.totalTests}` : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs">{l.latencyMs ? formatMs(l.latencyMs) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs whitespace-nowrap">
+                      {l.verdict === "error" ? "不计分" : `${round1(scoreOf(l))} / ${TIER_WEIGHT[l.tier]}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
+      </section>
+
+      <Modal open={picking} onClose={() => setPicking(false)} title="选题" icon={<ListChecks size={18} />} wide>
+        <Picker
+          items={items}
+          track={track}
+          language={language}
+          chosen={chosen}
+          fullMarks={fullMarks}
+          askEach={askEach}
+          onTrack={setTrack}
+          onLanguage={setLanguage}
+          onToggle={toggle}
+          onPick={pick}
+          firstOfEach={firstOfEach}
+          onAskEach={(v) => {
+            askRef.current = v;
+            setAskEach(v);
+          }}
+        />
+      </Modal>
+
+      <Modal open={!!open} onClose={() => setOpenKey(null)} title={open?.title ?? ""} wide>
+        {open && <Detail entry={open} view={view} onView={setView} />}
       </Modal>
     </div>
   );
 }
 
-// ---------------------------------------------------------------- 部件
+// ---------------------------------------------------------------- 顶栏和结局
 
-/** 机壳四角的螺丝 */
-function Screws() {
-  const screw =
-    "absolute size-2.5 rounded-full bg-linear-to-br from-surface to-faint/70 shadow-[inset_0_1px_1px_rgb(15_20_48/0.4)] after:absolute after:top-1/2 after:left-0.5 after:h-px after:w-1.5 after:-translate-y-1/2 after:rotate-45 after:bg-readout/60";
-  return (
-    <>
-      <span aria-hidden className={cx(screw, "top-2 left-2")} />
-      <span aria-hidden className={cx(screw, "top-2 right-2")} />
-      <span aria-hidden className={cx(screw, "bottom-2 left-2")} />
-      <span aria-hidden className={cx(screw, "right-2 bottom-2")} />
-    </>
-  );
-}
-
-/** 指示灯 */
-function Lamp({ tone, blink }: { tone: "off" | "on" | "busy" | "fail"; blink?: boolean }) {
+function StatusPill({ tone, children }: { tone: Tone | "idle"; children: ReactNode }) {
   return (
     <span
-      aria-hidden
       className={cx(
-        "inline-block size-2.5 shrink-0 rounded-full",
-        tone === "off" && "bg-faint/35 shadow-[inset_0_1px_1px_rgb(15_20_48/0.35)]",
-        tone === "on" && "bg-mint shadow-[0_0_10px_var(--color-mint)]",
-        tone === "busy" && "bg-amber shadow-[0_0_10px_var(--color-amber)]",
-        tone === "fail" && "bg-rose shadow-[0_0_10px_var(--color-rose)]",
-        blink && "motion-safe:animate-pulse",
-      )}
-    />
-  );
-}
-
-function Toggle({
-  on,
-  label,
-  disabled,
-  onChange,
-}: {
-  on: boolean;
-  label: string;
-  disabled?: boolean;
-  onChange: (on: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className={cx(
-        "relative h-5 w-9 shrink-0 rounded-full shadow-[inset_0_1px_3px_rgb(15_20_48/0.3)] transition disabled:opacity-50",
-        on ? "bg-violet" : "bg-tint-2",
+        "inline-flex h-6.5 items-center gap-2 rounded-full border bg-surface px-2.5 text-xs whitespace-nowrap",
+        tone === "warn" ? "border-amber/45 text-amber" : "border-line text-readout",
       )}
     >
       <span
+        aria-hidden
         className={cx(
-          "absolute top-0.5 left-0.5 size-4 rounded-full bg-surface shadow-[0_1px_2px_rgb(15_20_48/0.4)] transition-transform",
-          on && "translate-x-4",
+          "size-1.5 rounded-full",
+          tone === "run" &&
+            "bg-blue shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-blue)_18%,transparent)] motion-safe:animate-pulse",
+          tone === "ok" && "bg-mint",
+          tone === "bad" && "bg-rose",
+          tone === "warn" && "bg-amber",
+          (tone === "idle" || tone === "wait") && "bg-faint",
         )}
       />
-    </button>
-  );
-}
-
-/** 机械计数轮：每一位是一条 0–9 的数字带，换数时滚动到位 */
-function Odometer({ value }: { value: number | null }) {
-  const digits =
-    value === null
-      ? null
-      : String(Math.max(0, Math.min(100, value)))
-          .padStart(3, "0")
-          .split("");
-  return (
-    <span
-      role="img"
-      aria-label={value === null ? "还没开始" : `${value} 分`}
-      className="flex gap-0.5 rounded-lg bg-ink p-1 shadow-[inset_0_2px_6px_rgb(0_0_0/0.6)]"
-    >
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="relative h-7 w-5 overflow-hidden rounded-[4px] bg-linear-to-b from-ink via-[color-mix(in_oklab,var(--color-ink)_82%,white)] to-ink font-mono text-lg leading-7 font-semibold text-surface"
-        >
-          <span
-            className="absolute inset-x-0 top-0 flex flex-col items-center transition-transform duration-700 ease-[cubic-bezier(0.2,0.9,0.25,1.15)] motion-reduce:transition-none"
-            style={{ transform: `translateY(-${digits ? Number(digits[i]) * 1.75 : 0}rem)` }}
-          >
-            {Array.from({ length: 10 }, (_, d) => (
-              <span key={d} className={cx("h-7", !digits && "text-surface/25")}>
-                {digits ? d : "–"}
-              </span>
-            ))}
-          </span>
-          <span aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-black/40" />
-        </span>
-      ))}
+      {children}
     </span>
   );
 }
 
-/** 楼层指示：电梯式，从下往上是青铜到王者 */
-function Floors({
-  items,
-  order,
-  state,
-  idle,
-  currentId,
+function Ended({
+  final,
   ending,
+  state,
+  order,
 }: {
-  items: ArenaCatalogItem[];
-  order: string[];
+  final: ArenaResult;
+  ending: Ending;
   state: Record<string, ProblemState>;
-  idle: boolean;
-  currentId: string | null;
-  ending: Ending | null;
+  order: string[];
 }) {
-  const currentTier = currentId ? state[currentId]?.tier : null;
+  const best = final.best ? `最高解出${TIER_LABEL[final.best]}` : "一题没解出";
+  const score = `得 ${final.score ?? "—"} 分`;
+  if (ending === "cleared") {
+    return (
+      <p>
+        <strong className="font-semibold">通关</strong>，选中的 {order.length} 题全部解出，{score}
+      </p>
+    );
+  }
+  if (ending === "eliminated" && final.eliminatedAt) {
+    const p = state[final.eliminatedAt];
+    return (
+      <p>
+        <strong className="font-semibold">止步{TIER_LABEL[p.tier]}</strong>，「{p.title}」{VERDICT_LABEL[p.verdict!]}，
+        {best}，{score}。没测到的题按 0 分算
+      </p>
+    );
+  }
+  const failed = final.problems.at(-1)?.verdict === "error" ? final.problems.at(-1) : null;
   return (
-    <ol
-      aria-label="关卡进度"
-      className={cx(
-        // 窄屏三列网格；宽屏是一根从下往上的电梯井，中间一条导轨串起各层的灯
-        "relative grid grid-cols-3 gap-1 p-2 sm:grid-cols-6 lg:flex lg:flex-col-reverse lg:justify-between",
-        "lg:before:absolute lg:before:top-7 lg:before:bottom-7 lg:before:left-[1.3rem] lg:before:w-px lg:before:bg-line",
-        PLATE,
-      )}
-    >
-      {TIERS.map((tier) => {
-        const ids = order.filter((id) => items.find((p) => p.id === id)?.tier === tier);
-        const done = ids.map((id) => state[id]).filter((p) => p?.verdict);
-        const failed = done.some((p) => p.verdict !== "accepted" && p.verdict !== "error");
-        const passed = ids.length > 0 && done.length === ids.length && !failed;
-        const here = currentTier === tier;
-        const locked = !idle && !here && done.length < ids.length;
-        const tone = failed ? "fail" : passed ? "on" : here ? "busy" : "off";
-        return (
-          <li
-            key={tier}
-            className={cx(
-              "relative flex items-center gap-2 rounded-xl px-2 py-2 whitespace-nowrap transition lg:gap-2.5 lg:px-3 lg:py-2.5",
-              here && "bg-surface shadow-[0_1px_0_var(--color-line),0_6px_16px_-10px_rgb(15_20_48/0.4)]",
-            )}
-          >
-            {here && (
-              <motion.span layoutId="floor-needle" className="absolute -left-1.5 hidden text-amber lg:block">
-                <ChevronRight size={16} strokeWidth={3} />
-              </motion.span>
-            )}
-            <Lamp tone={ids.length ? tone : "off"} blink={here} />
-            <span
-              className={cx(
-                "font-display text-base font-semibold",
-                ids.length ? TIER_TEXT[tier] : "text-faint",
-                !ids.length && "opacity-60",
-              )}
-            >
-              {TIER_LABEL[tier]}
-            </span>
-            <span className="ml-auto hidden items-center gap-1 text-xs text-readout tabular-nums min-[380px]:flex sm:max-lg:hidden">
-              {!ids.length ? (
-                "未装题"
-              ) : idle ? (
-                `${ids.length} 题`
-              ) : failed ? (
-                <span className="text-rose">淘汰</span>
-              ) : passed ? (
-                <span className="text-mint">过关</span>
-              ) : here ? (
-                "测试中"
-              ) : locked ? (
-                <>
-                  <Lock size={11} />
-                  {ending ? "未测" : `${ids.length} 题`}
-                </>
-              ) : null}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+    <p>
+      <strong className="font-semibold">已结束</strong>，
+      {failed ? `「${failed.title}」调用失败，没有计入满分` : "在你确认时停下"}。{best}，{score}
+    </p>
   );
 }
 
-/** 装题键盘：每档三道题是三颗键帽，按下表示装入 */
-function Keyboard({
+// ---------------------------------------------------------------- 编辑器
+
+/** 模型写的代码逐段出现；交卷后换成提取出的代码 */
+function Editor({ problem, fileName }: { problem: ProblemState | null; fileName: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const writing = problem?.phase === "writing";
+  const code = problem ? problem.code || liveCode(problem.text ?? "") : "";
+  const cut = problem?.verdict === "error" && !problem.code && (problem.errorKind === "network" || !!code);
+  const thinking = writing && !code;
+
+  useEffect(() => {
+    if (writing && box.current) box.current.scrollTop = box.current.scrollHeight;
+  }, [writing, code.length]);
+
+  const lines = code ? code.split("\n") : [];
+  const html = fileName.endsWith(".html");
+  return (
+    <section
+      aria-label="模型写的代码"
+      className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-surface"
+    >
+      <div className="flex h-11 items-center gap-3 border-b border-line px-4 text-sm">
+        <span className="-mb-px flex h-11 items-center border-b-2 border-ink font-mono text-[13px]">{fileName}</span>
+        <span className="ml-auto truncate text-readout">
+          {!problem
+            ? "等待出题"
+            : thinking
+              ? "模型在思考"
+              : writing
+                ? "模型在写"
+                : cut
+                  ? "回答中断"
+                  : problem.code
+                    ? "已交卷"
+                    : problem.verdict === "no_code"
+                      ? "没有交卷"
+                      : ""}
+        </span>
+        {problem?.writeAt && (
+          <span className="font-mono text-xs text-readout tabular-nums">
+            {writing ? <Elapsed from={problem.writeAt} /> : problem.latencyMs ? formatMs(problem.latencyMs) : null}
+          </span>
+        )}
+      </div>
+      <div
+        ref={box}
+        className="relative h-72 overflow-auto py-3 font-mono text-[13px] leading-[1.75] [font-variant-ligatures:none] sm:h-[28rem]"
+      >
+        {!problem && (
+          <p className="px-5 font-sans text-sm text-faint">选好题点开始，模型写的代码会一段一段出现在这里。</p>
+        )}
+        {thinking && problem?.writeAt && (
+          <p className="flex items-center gap-2 px-5 font-sans text-sm text-readout">
+            <span className="size-1.5 rounded-full bg-blue motion-safe:animate-pulse" />
+            模型在思考，已经 <Elapsed from={problem.writeAt} seconds />
+          </p>
+        )}
+        {lines.map((line, i) => (
+          <div key={i} className="grid grid-cols-[3rem_1fr]">
+            <span className="pr-4 text-right text-faint/70 select-none">{i + 1}</span>
+            <span className="pr-4 whitespace-pre">
+              <Highlighted line={line} html={html} />
+              {writing && i === lines.length - 1 && (
+                <span className="ml-px inline-block h-[1.05em] w-[0.55em] translate-y-[0.2em] bg-ink motion-safe:animate-pulse" />
+              )}
+            </span>
+          </div>
+        ))}
+        {cut && (
+          <div className="grid grid-cols-[3rem_1fr] text-amber">
+            <span />
+            <span>{code ? "── 连接在这里断开 ──" : "── 没有收到回答 ──"}</span>
+          </div>
+        )}
+        {problem?.verdict === "no_code" && !code && (
+          <p className="px-5 font-sans text-sm text-rose">{problem.detail}</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const KEYWORDS = new Set(
+  (
+    "def return for in if else elif while import from as and or not continue break lambda True False None class pass " +
+    "yield with try except finally raise global nonlocal is const let var function new this typeof instanceof switch " +
+    "case default do of async await null undefined true false public private protected static void int long double " +
+    "boolean char final package func type struct map range go defer chan interface select fallthrough throw throws " +
+    "extends implements export"
+  ).split(" "),
+);
+
+/** 够用的语法高亮：注释、字符串、数字、关键字、函数调用。用 React 节点渲染，不拼 HTML */
+function Highlighted({ line, html }: { line: string; html: boolean }) {
+  const re = html
+    ? /(<!--.*?(?:-->|$))|("[^"]*"?|'[^']*'?)|(\b\d+(?:\.\d+)?\b)|(<\/?[A-Za-z][\w-]*)|([A-Za-z_$][\w$]*)/g
+    : /(#.*$|\/\/.*$)|("(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\])*'?|`[^`]*`?)|(\b\d[\d_]*(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)(?=\s*\()|([A-Za-z_$][\w$]*)/g;
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of line.matchAll(re)) {
+    if (m.index > last) out.push(line.slice(last, m.index));
+    const cls = m[1]
+      ? "text-faint italic"
+      : m[2]
+        ? "text-mint"
+        : m[3]
+          ? "text-blue"
+          : m[4]
+            ? html
+              ? "text-rose"
+              : "text-violet"
+            : KEYWORDS.has(m[5]) && !html
+              ? "text-rose"
+              : null;
+    out.push(
+      cls ? (
+        <span key={m.index} className={cls}>
+          {m[0]}
+        </span>
+      ) : (
+        m[0]
+      ),
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) out.push(line.slice(last));
+  return <>{out}</>;
+}
+
+// ---------------------------------------------------------------- 判题面板
+
+function JudgePanel({
+  problem,
+  paused,
+  next,
+  stage,
+  onDecide,
+}: {
+  problem: ProblemState | null;
+  paused: Pause;
+  next: ProblemState | null;
+  stage: RefObject<HTMLDivElement | null>;
+  onDecide: (choice: "go" | "retry" | "stop") => void;
+}) {
+  const p = problem;
+  const ui = p?.kind === "ui";
+  const failedAt: "write" | "judge" | null =
+    p?.verdict === "error" ? (p.errorKind === "judge" ? "judge" : "write") : null;
+  const steps: Array<{ label: string; tone: Tone; time?: ReactNode }> = p
+    ? [
+        { label: "出题", tone: "ok" },
+        {
+          label: "模型作答",
+          tone: p.phase === "writing" ? "run" : failedAt === "write" ? "warn" : p.verdict === "no_code" ? "bad" : "ok",
+          time:
+            p.phase === "writing" && p.writeAt ? (
+              <Elapsed from={p.writeAt} />
+            ) : p.latencyMs ? (
+              formatMs(p.latencyMs)
+            ) : undefined,
+        },
+        {
+          label: ui ? "在浏览器里测试页面" : "运行隐藏测试",
+          tone:
+            p.phase === "judging" || p.phase === "browser"
+              ? "run"
+              : failedAt === "judge"
+                ? "warn"
+                : p.phase !== "done" || !p.code
+                  ? "wait"
+                  : p.verdict === "accepted"
+                    ? "ok"
+                    : "bad",
+          time:
+            (p.phase === "judging" || p.phase === "browser") && p.judgeAt ? (
+              <Elapsed from={p.judgeAt} />
+            ) : p.judgeMs ? (
+              formatMs(p.judgeMs)
+            ) : undefined,
+        },
+        {
+          label: "判定",
+          tone: p.phase !== "done" ? "wait" : p.verdict === "accepted" ? "ok" : p.verdict === "error" ? "warn" : "bad",
+        },
+      ]
+    : [];
+
+  const total = p?.totalTests ?? 0;
+  const marks = p?.tests ?? [];
+  const passed = marks.filter((m) => m.verdict === "accepted").length;
+  const times = marks.filter((m) => m.verdict === "accepted" && m.ms !== undefined).map((m) => m.ms!);
+  const slowest = times.length ? Math.max(...times) : null;
+
+  return (
+    <section
+      aria-label="判题"
+      className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-surface"
+    >
+      <div className="flex h-11 items-center gap-3 border-b border-line px-4 text-sm">
+        <h2 className="font-semibold">判题</h2>
+        {p && (
+          <span className="truncate text-readout">
+            {TIER_LABEL[p.tier]}，{p.title}
+          </span>
+        )}
+      </div>
+
+      {!p && (
+        <div className="flex flex-col gap-2 px-4 py-4 text-sm text-readout">
+          <p>题目按青铜到王者的顺序一道一道出，答完一题才出下一题。</p>
+          <p>每题满分是所在段位的分值；全部测试通过拿满分，部分通过按比例拿一半。</p>
+          <p>答错立即停止。连不上模型、上游报错、判题服务不可用都不算答错，可以重试这一题。</p>
+        </div>
+      )}
+
+      {p && (
+        <ol className="py-1.5">
+          {steps.map((s) => (
+            <li
+              key={s.label}
+              className={cx(
+                "grid grid-cols-[1.375rem_1fr_auto] items-center gap-2 px-4 py-2 text-sm",
+                s.tone === "wait" && "text-faint",
+                s.tone === "warn" && "text-amber",
+              )}
+            >
+              <StateIcon tone={s.tone} />
+              <span>{s.label}</span>
+              <span className="font-mono text-xs text-readout tabular-nums">{s.time}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {/* 页面题的测试台：模型做的页面在这里被逐项操作，必须在可视区域里 */}
+      <div
+        className={cx(
+          "relative mx-4 mb-3 ml-11.5 h-44 overflow-hidden rounded-lg border border-line bg-white",
+          p?.phase !== "browser" && "hidden",
+        )}
+      >
+        <div ref={stage} className="absolute inset-0" />
+      </div>
+
+      {p && total > 0 && p.verdict !== "error" && (
+        <div className="px-4 pb-3 pl-11.5">
+          <ol className="grid grid-cols-[repeat(auto-fill,minmax(4.25rem,1fr))] gap-1.5">
+            {Array.from({ length: total }, (_, i) => (
+              <TestCell key={i} index={i} mark={marks[i]} ui={ui} />
+            ))}
+          </ol>
+          <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-readout">
+            <span>
+              通过 <strong className="font-semibold text-ink tabular-nums">{passed}</strong> / {total}
+            </span>
+            {!ui && (
+              <span>
+                最慢{" "}
+                <strong className="font-semibold text-ink tabular-nums">
+                  {slowest === null ? "—" : formatMs(slowest)}
+                </strong>
+              </span>
+            )}
+            {!ui && p.limit && (
+              <span>
+                时限 <strong className="font-semibold text-ink tabular-nums">{p.limit} 秒</strong>
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+
+      {p?.phase === "done" && <Outcome problem={p} paused={paused} next={next} onDecide={onDecide} />}
+    </section>
+  );
+}
+
+function TestCell({ index, mark, ui }: { index: number; mark?: TestMark; ui: boolean }) {
+  const v = mark?.verdict;
+  const ok = v === "accepted";
+  const bad = !!v && v !== "accepted" && v !== "running";
+  return (
+    <motion.li
+      key={v ?? "none"}
+      initial={ok || bad ? { rotateX: -80, opacity: 0.4 } : false}
+      animate={{ rotateX: 0, opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className={cx(
+        "grid gap-px rounded-md border px-2 py-1.5 text-[11px]",
+        !v && "border-line",
+        v === "running" && "border-blue/60 bg-blue/6",
+        ok && "border-mint/40 bg-mint/8",
+        bad && "border-rose/50 bg-rose/6",
+      )}
+    >
+      <span className="font-mono text-readout">#{String(index + 1).padStart(2, "0")}</span>
+      <span
+        className={cx(
+          "truncate font-mono font-medium tabular-nums",
+          ok && "text-mint",
+          bad && "text-rose",
+          !ok && !bad && "text-faint",
+        )}
+      >
+        {!v
+          ? "—"
+          : v === "running"
+            ? "…"
+            : ok
+              ? ui || mark?.ms === undefined
+                ? "通过"
+                : formatMs(mark.ms)
+              : ui
+                ? "没通过"
+                : VERDICT_LABEL[v]}
+      </span>
+    </motion.li>
+  );
+}
+
+/** 判定：过关、答错（不能重试）、调用失败（可以重试） */
+function Outcome({
+  problem: p,
+  paused,
+  next,
+  onDecide,
+}: {
+  problem: ProblemState;
+  paused: Pause;
+  next: ProblemState | null;
+  onDecide: (choice: "go" | "retry" | "stop") => void;
+}) {
+  const box = "mx-4 mb-4 flex flex-col gap-2 rounded-lg border p-3 text-sm";
+  if (p.verdict === "error") {
+    const fault = FAULT[p.errorKind ?? "network"];
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cx(box, "border-amber/40 bg-amber/8")}
+      >
+        <p className="flex flex-wrap items-center gap-2 font-semibold text-amber">
+          <span className="rounded border border-amber/60 px-1.5 py-0.5 text-[11px] font-medium">{fault.label}</span>
+          调用失败，可以重试
+        </p>
+        {p.detail && (
+          <p className="rounded-md border border-line bg-surface px-2.5 py-1.5 font-mono text-xs break-all">
+            {p.detail}
+          </p>
+        )}
+        <p className="text-xs text-readout">{fault.why}这不算模型答错，不扣分、不淘汰。</p>
+        {paused?.reason === "error" && (
+          <div className="mt-1 flex items-center gap-2">
+            <IconButton
+              label="重试这一题"
+              icon={<RotateCcw size={17} />}
+              onClick={() => onDecide("retry")}
+              tone="primary"
+            />
+            <IconButton label="结束段位赛" icon={<Square size={16} />} onClick={() => onDecide("stop")} />
+            <span className="text-xs text-readout">重试这一题，或者结束并出成绩</span>
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+  if (p.verdict === "accepted") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cx(box, "border-mint/40 bg-mint/8")}
+      >
+        <p className="font-semibold text-mint">通过</p>
+        <p>
+          全部 {p.totalTests} {p.kind === "ui" ? "项检查" : "组测试"}都对，得 {TIER_WEIGHT[p.tier]} 分。
+        </p>
+        {paused?.reason === "next" && next && (
+          <div className="mt-1 flex items-center gap-2">
+            <IconButton
+              label="继续下一题"
+              icon={<Play size={16} fill="currentColor" />}
+              onClick={() => onDecide("go")}
+              tone="primary"
+            />
+            <IconButton label="到此为止，出成绩" icon={<Square size={16} />} onClick={() => onDecide("stop")} />
+            <span className="text-xs text-readout">下一题是{TIER_LABEL[next.tier]}，继续吗？</span>
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+  const pts = round1(scoreOf(p));
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cx(box, "border-rose/40 bg-rose/6")}
+    >
+      <p className="font-semibold text-rose">{VERDICT_LABEL[p.verdict!]}</p>
+      {p.verdict === "no_code" ? (
+        <p>{p.detail}</p>
+      ) : (
+        <p>
+          {p.failedTest ? `第 ${p.failedTest} ${p.kind === "ui" ? "项" : "组"}起没通过，` : ""}通过 {p.passedTests}/
+          {p.totalTests}，按比例得 {pts} 分。
+        </p>
+      )}
+      {p.detail && p.verdict !== "no_code" && (
+        <pre className="max-h-32 overflow-auto rounded-md border border-line bg-surface px-2.5 py-1.5 font-mono text-xs whitespace-pre-wrap">
+          {p.detail}
+        </pre>
+      )}
+      <p className="text-xs text-readout">模型交了卷但没做对，不能重试。段位赛到这里结束，后面的题按 0 分算。</p>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------- 小部件
+
+function StateIcon({ tone }: { tone: Tone }) {
+  return (
+    <span
+      aria-hidden
+      className={cx(
+        "grid size-4 shrink-0 place-items-center rounded-full text-surface",
+        tone === "wait" && "border-[1.5px] border-dashed border-faint",
+        tone === "run" && "border-[1.5px] border-blue border-t-transparent motion-safe:animate-spin",
+        tone === "ok" && "bg-mint",
+        tone === "bad" && "bg-rose",
+        tone === "warn" && "bg-amber",
+      )}
+    >
+      {tone === "ok" && <Check size={10} strokeWidth={3.5} />}
+      {tone === "bad" && <X size={10} strokeWidth={3.5} />}
+      {tone === "warn" && <span className="text-[10px] leading-none font-bold">!</span>}
+    </span>
+  );
+}
+
+function Verdict({ entry: l }: { entry: LogEntry }) {
+  const tone = l.verdict === "accepted" ? "bg-mint" : l.verdict === "error" ? "bg-amber" : "bg-rose";
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center gap-1.5 text-xs whitespace-nowrap",
+        l.verdict === "error" && "text-amber",
+      )}
+    >
+      <span className={cx("size-1.5 rounded-full", tone)} />
+      {l.verdict === "error" ? `调用失败，${FAULT[l.errorKind ?? "network"].label}` : VERDICT_LABEL[l.verdict!]}
+      {l.verdict === "accepted" && l.tries > 1 && <span className="text-readout">（第 {l.tries} 次）</span>}
+    </span>
+  );
+}
+
+/** 每半秒刷新一次的当前时间 */
+function useNow(on: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [on]);
+  return now;
+}
+
+function Elapsed({
+  from,
+  to,
+  clock,
+  seconds,
+}: {
+  from: number;
+  to?: number | null;
+  clock?: boolean;
+  seconds?: boolean;
+}) {
+  const now = useNow(!to);
+  const s = Math.max(0, Math.floor(((to ?? now) - from) / 1000));
+  if (clock) return <>{`${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`}</>;
+  if (seconds) return <>{s} 秒</>;
+  return <>{s}s</>;
+}
+
+// ---------------------------------------------------------------- 选题
+
+function Picker({
   items,
+  track,
+  language,
   chosen,
+  fullMarks,
+  askEach,
+  firstOfEach,
+  onTrack,
+  onLanguage,
   onToggle,
+  onPick,
+  onAskEach,
 }: {
   items: ArenaCatalogItem[];
+  track: ArenaTrack;
+  language: ArenaLanguage;
   chosen: string[];
+  fullMarks: number;
+  askEach: boolean;
+  firstOfEach: string[];
+  onTrack: (t: ArenaTrack) => void;
+  onLanguage: (l: ArenaLanguage) => void;
   onToggle: (id: string) => void;
+  onPick: (ids: string[] | null) => void;
+  onAskEach: (v: boolean) => void;
 }) {
+  const segment = (on: boolean) =>
+    cx(
+      "rounded-md px-3 py-1.5 text-sm transition",
+      on ? "bg-surface font-medium text-ink shadow-[0_1px_2px_rgb(0_0_0/0.1)]" : "text-readout hover:text-ink",
+    );
   return (
-    <div className={cx("flex flex-col gap-2.5 p-3", PLATE)}>
-      {TIERS.map((tier) => (
-        <div key={tier} className="grid items-stretch gap-2 sm:grid-cols-[3.5rem_1fr_1fr_1fr]">
-          <span className="flex items-center gap-1.5 text-sm">
-            <span className={cx("h-4 w-1 rounded-full", TIER_BG[tier])} />
-            <span className={cx("font-semibold", TIER_TEXT[tier])}>{TIER_LABEL[tier]}</span>
-          </span>
-          {items
-            .filter((p) => p.tier === tier)
-            .map((p) => {
-              const on = chosen.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => onToggle(p.id)}
-                  className={cx(
-                    "flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-[transform,box-shadow,background-color] duration-100",
-                    on
-                      ? "translate-y-0.5 border-ink/15 bg-tint shadow-[inset_0_2px_5px_rgb(15_20_48/0.18)]"
-                      : "border-line bg-surface shadow-[0_3px_0_var(--color-tint-2),0_5px_10px_-6px_rgb(15_20_48/0.35)] hover:-translate-y-px",
-                  )}
-                >
-                  <Lamp tone={on ? "on" : "off"} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1 text-sm font-medium">
-                      {p.kind === "ui" && <AppWindow size={13} className="shrink-0 text-faint" />}
-                      <span className="truncate">{p.title}</span>
-                    </span>
-                    <span className="block truncate text-xs text-faint">{p.tags.join("、")}</span>
-                  </span>
-                </button>
-              );
-            })}
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div role="radiogroup" aria-label="赛道" className="flex rounded-lg bg-tint p-1">
+          {(["algo", "frontend"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="radio"
+              aria-checked={track === t}
+              onClick={() => onTrack(t)}
+              className={segment(track === t)}
+            >
+              {TRACK_LABEL[t]}
+            </button>
+          ))}
         </div>
-      ))}
+        {track === "algo" ? (
+          <div className="flex items-center gap-1">
+            <div role="radiogroup" aria-label="编程语言" className="flex rounded-lg bg-tint p-1">
+              {ARENA_LANGUAGES.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  role="radio"
+                  aria-checked={language === l}
+                  onClick={() => onLanguage(l)}
+                  className={segment(language === l)}
+                >
+                  {LANGUAGE_LABEL[l]}
+                </button>
+              ))}
+            </div>
+            <IconButton
+              label="随机选一种语言"
+              size="sm"
+              tone="ghost"
+              icon={<Dices size={16} />}
+              onClick={() => onLanguage(ARENA_LANGUAGES[Math.floor(Math.random() * ARENA_LANGUAGES.length)])}
+            />
+          </div>
+        ) : (
+          <span className="text-sm text-readout">JavaScript、HTML 和 CSS；页面题在你的浏览器里测试</span>
+        )}
+      </div>
+
+      <div className="flex flex-col divide-y divide-line">
+        {TIERS.map((tier) => (
+          <div key={tier} className="grid items-stretch gap-2 py-2 sm:grid-cols-[4.5rem_1fr_1fr_1fr]">
+            <span className="flex flex-col justify-center text-sm font-semibold">
+              {TIER_LABEL[tier]}
+              <span className="text-xs font-normal text-readout">每题 {TIER_WEIGHT[tier]} 分</span>
+            </span>
+            {items
+              .filter((p) => p.tier === tier)
+              .map((p) => {
+                const on = chosen.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => onToggle(p.id)}
+                    className={cx(
+                      "flex min-w-0 items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition",
+                      on ? "border-ink ring-1 ring-ink" : "border-line hover:bg-tint",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cx(
+                        "grid size-3.5 shrink-0 place-items-center rounded border-[1.5px] text-surface",
+                        on ? "border-ink bg-ink" : "border-faint",
+                      )}
+                    >
+                      {on && <Check size={10} strokeWidth={3.5} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1 text-sm font-medium">
+                        {p.kind === "ui" && <AppWindow size={13} className="shrink-0 text-faint" />}
+                        <span className="truncate">{p.title}</span>
+                      </span>
+                      <span className="block truncate text-xs text-faint">{p.tags.join("、")}</span>
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-sm">
+        <span>
+          已选 <strong className="tabular-nums">{chosen.length}</strong> 题，满分{" "}
+          <strong className="tabular-nums">{fullMarks}</strong> 分
+        </span>
+        <div className="flex items-center gap-1">
+          {(
+            [
+              ["每档第一题", firstOfEach],
+              ["全选", items.map((p) => p.id)],
+              ["清空", []],
+            ] as const
+          ).map(([label, ids]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => onPick(label === "每档第一题" ? null : [...ids])}
+              className="rounded-md px-2.5 py-1 text-xs text-readout transition hover:bg-tint hover:text-ink"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="ml-auto flex cursor-pointer items-center gap-2 text-readout select-none">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={askEach}
+            aria-label="每过一关暂停，由我决定是否继续"
+            onClick={() => onAskEach(!askEach)}
+            className={cx("relative h-4.5 w-7.5 shrink-0 rounded-full transition", askEach ? "bg-ink" : "bg-tint-2")}
+          >
+            <span
+              className={cx(
+                "absolute top-0.5 left-0.5 size-3.5 rounded-full bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.25)] transition-transform",
+                askEach && "translate-x-3",
+              )}
+            />
+          </button>
+          每过一关暂停
+        </label>
+      </div>
     </div>
   );
 }
 
-/** 启动按钮：机器上唯一的大按钮 */
-function StartButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={disabled ? "先装入至少一道题" : "启动"}
-      title={disabled ? "先装入至少一道题" : "启动"}
-      disabled={disabled}
-      onClick={onClick}
-      className="grid size-14 place-items-center rounded-full border border-ink/20 bg-linear-to-b from-violet to-[color-mix(in_oklab,var(--color-violet)_75%,black)] text-surface shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_4px_0_color-mix(in_oklab,var(--color-violet)_60%,black),0_10px_20px_-8px_var(--color-violet)] transition-[transform,box-shadow] active:translate-y-1 active:shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_0_0_transparent] disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      <Play size={22} fill="currentColor" />
-    </button>
-  );
-}
+// ---------------------------------------------------------------- 明细
 
-const STEPS: Array<{
-  key: string;
-  label: string;
-  done: (p: ProblemState) => boolean;
-  busy: (p: ProblemState) => boolean;
-}> = [
-  { key: "issue", label: "出题", done: () => true, busy: () => false },
-  {
-    key: "write",
-    label: "写代码",
-    done: (p) => p.phase !== "queued" && p.phase !== "writing",
-    busy: (p) => p.phase === "writing",
-  },
-  {
-    key: "judge",
-    label: "判题",
-    done: (p) => p.phase === "done",
-    busy: (p) => p.phase === "judging" || p.phase === "browser",
-  },
-  { key: "verdict", label: "判定", done: (p) => p.phase === "done", busy: () => false },
-];
-
-/** 读数窗：测试时只显示当前这道题；结束后显示成绩 */
-function Readout({
-  current,
-  index,
-  total,
-  final,
-  ending,
-  eliminated,
-  stage,
+function Detail({
+  entry: l,
+  view,
+  onView,
 }: {
-  current: ProblemState | null;
-  index: number;
-  total: number;
-  final: ArenaResult | null;
-  ending: Ending | null;
-  eliminated: ProblemState | null;
-  stage: RefObject<HTMLDivElement | null>;
+  entry: LogEntry;
+  view: "page" | "code";
+  onView: (v: "page" | "code") => void;
 }) {
   return (
-    <div className={cx(SCREEN, "min-h-[22rem] p-5 sm:p-7")}>
-      <div aria-hidden className={SCANLINES} />
-      <AnimatePresence mode="wait">
-        {final ? (
-          <motion.div
-            key="final"
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="relative flex h-full flex-col justify-center gap-4"
-          >
-            <p className="text-sm text-surface/55">
-              {ending === "cleared" ? "全部过关" : ending === "eliminated" ? "被淘汰" : "提前结束"}
-            </p>
-            <p className="font-display text-4xl font-bold sm:text-5xl">
-              {ending === "cleared" ? (
-                "通关"
-              ) : eliminated ? (
-                <>
-                  止步<span className={cx("ml-3", TIER_TEXT[eliminated.tier])}>{TIER_LABEL[eliminated.tier]}</span>
-                </>
-              ) : final.best ? (
-                <>
-                  停在<span className={cx("ml-3", TIER_TEXT[final.best])}>{TIER_LABEL[final.best]}</span>
-                </>
-              ) : (
-                "还没过关"
-              )}
-            </p>
-            {eliminated && (
-              <p className="text-sm text-surface/70">
-                在「{eliminated.title}」{VERDICT_LABEL[eliminated.verdict!]}
-                {eliminated.totalTests ? `，通过 ${eliminated.passedTests}/${eliminated.totalTests}` : ""}。
-              </p>
-            )}
-            <p className="text-sm text-surface/55">
-              得 {final.score ?? "—"} 分{final.best ? `，最高解出${TIER_LABEL[final.best]}` : ""}
-              。满分算的是装入的所有题，没测到的按 0 分计。
-            </p>
-          </motion.div>
-        ) : current ? (
-          <motion.div
-            key={current.id}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-            transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
-            className="relative flex flex-col gap-5"
-          >
-            <div className="flex items-baseline gap-3 text-sm text-surface/55">
-              <span className="font-mono tabular-nums">
-                第 {index + 1} / {total} 关
-              </span>
-              <span className={cx("font-semibold", TIER_TEXT[current.tier])}>{TIER_LABEL[current.tier]}</span>
-              <span>每题 {TIER_WEIGHT[current.tier]} 分</span>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl font-semibold sm:text-4xl">{current.title}</h2>
-              <p className="mt-2 text-sm text-surface/55">{current.tags.join("、")}</p>
-            </div>
-
-            {/* 继电器灯：一道题走完的四个环节 */}
-            <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
-              {STEPS.map((s, i) => {
-                const verdictStep = s.key === "verdict" && current.phase === "done";
-                const tone = verdictStep
-                  ? current.verdict === "accepted"
-                    ? "on"
-                    : current.verdict === "error"
-                      ? "busy"
-                      : "fail"
-                  : s.busy(current)
-                    ? "busy"
-                    : s.done(current)
-                      ? "on"
-                      : "off";
-                return (
-                  <li key={s.key} className="flex items-center gap-2">
-                    {i > 0 && <span aria-hidden className="h-px w-5 bg-surface/20" />}
-                    <Lamp tone={tone} blink={tone === "busy"} />
-                    <span className={tone === "off" ? "text-surface/35" : "text-surface/85"}>
-                      {s.key === "judge" && current.kind === "ui" ? "浏览器测试" : s.label}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-
-            {/* 页面题：测试台，模型做的页面在这里被逐项操作 */}
-            <div
-              className={cx(
-                "relative h-[13.5rem] w-72 overflow-hidden rounded-lg border border-surface/15 bg-white",
-                current.phase !== "browser" && "hidden",
-              )}
-            >
-              <div ref={stage} className="absolute inset-0" />
-            </div>
-
-            {current.phase === "done" && (
-              <motion.p
-                initial={{ opacity: 0, scale: 1.4, rotate: -8 }}
-                animate={{ opacity: 1, scale: 1, rotate: -4 }}
-                transition={{ type: "spring", stiffness: 420, damping: 18 }}
-                className={cx(
-                  "inline-flex w-fit items-center gap-2 rounded-lg border-2 px-3 py-1 font-display text-lg font-bold",
-                  current.verdict === "accepted"
-                    ? "border-mint text-mint"
-                    : current.verdict === "error"
-                      ? "border-amber text-amber"
-                      : "border-rose text-rose",
-                )}
-              >
-                {current.verdict === "accepted" ? <Check size={18} strokeWidth={3} /> : <X size={18} strokeWidth={3} />}
-                {VERDICT_LABEL[current.verdict!]}
-                {current.totalTests ? (
-                  <span className="font-mono text-sm font-medium tabular-nums">
-                    {current.passedTests}/{current.totalTests}
-                  </span>
-                ) : null}
-              </motion.p>
-            )}
-          </motion.div>
-        ) : (
-          <motion.p key="boot" className="relative text-surface/55">
-            正在准备
-          </motion.p>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <span className="font-semibold">{TIER_LABEL[l.tier]}</span>
+        <Pill tone={l.verdict === "accepted" ? "pass" : l.verdict === "error" ? "warn" : "fail"}>
+          {l.verdict === "error" ? `调用失败，${FAULT[l.errorKind ?? "network"].label}` : VERDICT_LABEL[l.verdict!]}
+        </Pill>
+        {l.verdict !== "error" && (
+          <span className="text-readout tabular-nums">
+            得 {round1(scoreOf(l))} / {TIER_WEIGHT[l.tier]} 分
+          </span>
         )}
-      </AnimatePresence>
+        {!!l.totalTests && l.verdict !== "error" && (
+          <span className="text-readout">
+            通过 {l.passedTests}/{l.totalTests} {l.kind === "ui" ? "项检查" : "组测试"}
+          </span>
+        )}
+        {!!l.latencyMs && <span className="text-readout">作答用时 {formatMs(l.latencyMs)}</span>}
+        {l.slowestMs !== undefined && <span className="text-readout">程序最慢一组 {formatMs(l.slowestMs)}</span>}
+        {l.kind === "ui" && l.code && (
+          <div className="ml-auto flex rounded-xl border border-line p-1">
+            <IconButton
+              label="看页面"
+              size="sm"
+              tone={view === "page" ? "default" : "ghost"}
+              icon={<AppWindow size={16} />}
+              onClick={() => onView("page")}
+            />
+            <IconButton
+              label="看代码"
+              size="sm"
+              tone={view === "code" ? "default" : "ghost"}
+              icon={<Code2 size={16} />}
+              onClick={() => onView("code")}
+            />
+          </div>
+        )}
+      </div>
+      {l.detail && (
+        <pre
+          className={cx(
+            "max-h-48 overflow-auto rounded-lg p-3 font-mono text-xs whitespace-pre-wrap",
+            l.verdict === "error" ? "bg-amber/8 text-amber" : "bg-rose/6 text-rose",
+          )}
+        >
+          {l.detail}
+        </pre>
+      )}
+      {l.code ? (
+        l.kind === "ui" && view === "page" ? (
+          // 模型写的页面只能放进隔离的 iframe：读不到本站数据，也不能联网
+          <iframe
+            title={`${l.title}：模型做的页面`}
+            sandbox={SANDBOX}
+            srcDoc={previewDoc(l.code)}
+            className="h-[60vh] w-full rounded-lg border border-line bg-white"
+          />
+        ) : (
+          <pre className="max-h-[60vh] overflow-auto rounded-lg bg-tint p-4 font-mono text-xs leading-relaxed [font-variant-ligatures:none]">
+            {l.code}
+          </pre>
+        )
+      ) : l.text ? (
+        <pre className="max-h-[60vh] overflow-auto rounded-lg bg-tint p-4 font-mono text-xs leading-relaxed [font-variant-ligatures:none]">
+          {liveCode(l.text)}
+        </pre>
+      ) : null}
     </div>
   );
 }

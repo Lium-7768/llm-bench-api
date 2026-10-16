@@ -54,7 +54,7 @@ function ListBox<T>({
       initial={{ opacity: 0, y: -6, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 500, damping: 32 }}
-      className="max-h-72 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-[0_18px_50px_-18px_rgb(15_20_48/0.35)]"
+      className="max-h-72 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-[0_18px_50px_-18px_rgb(0_0_0/0.35)]"
     >
       {options.length === 0 && <li className="px-3 py-2.5 text-sm text-faint">{empty ?? "没有匹配项"}</li>}
       {options.map((o, i) => {
@@ -70,12 +70,12 @@ function ListBox<T>({
             onPointerEnter={() => onHover(i)}
             className={cx(
               "flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
-              i === active ? "bg-violet/8 text-violet" : "text-ink",
+              i === active ? "bg-tint text-ink" : "text-ink",
             )}
           >
             <span className="min-w-0 flex-1 truncate">{o.label}</span>
             {o.hint && <span className="shrink-0 text-xs text-faint">{o.hint}</span>}
-            {isSelected && <Check size={15} className="shrink-0 text-violet" />}
+            {isSelected && <Check size={15} className="shrink-0 text-ink" />}
           </li>
         );
       })}
@@ -150,7 +150,7 @@ export function Select<T extends string | number>({
         className={cx(
           inputClass,
           "flex items-center gap-2 text-left",
-          open && "border-violet bg-surface shadow-[0_0_0_4px_rgb(124_58_237/0.12)]",
+          open && "border-ink bg-surface shadow-[0_0_0_4px_rgb(23_23_23/0.08)]",
         )}
       >
         <span className="min-w-0 flex-1 truncate">{options[current]?.label}</span>

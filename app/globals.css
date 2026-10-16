@@ -1,25 +1,25 @@
 @import "tailwindcss";
 
 /* ================================================================
-   光谱分析仪（亮色）：冷白纸面 + 深海军蓝文字，
-   光谱渐变只用在「信号」上（进度、分数、光谱柱）
+   中性灰单色（亮色）：近白纸面 + 近黑文字，界面本身不带颜色，
+   只有状态（通过、存疑、异常、进行中）和五个步骤的标识色用颜色
    ================================================================ */
 
 @theme {
-  --color-paper: #f4f6fb;
+  --color-paper: #fafafa;
   --color-surface: #ffffff;
-  --color-tint: #eef1f8;
-  --color-tint-2: #e3e7f2;
-  --color-line: #e2e6f1;
-  --color-ink: #0f1430;
-  --color-readout: #5b6385;
-  --color-faint: #9aa1bd;
+  --color-tint: #f5f5f5;
+  --color-tint-2: #ebebeb;
+  --color-line: #e5e5e5;
+  --color-ink: #171717;
+  --color-readout: #666666;
+  --color-faint: #a3a3a3;
   --color-violet: #7c3aed;
-  --color-blue: #2563eb;
+  --color-blue: #0070f3;
   --color-cyan: #0891b2;
-  --color-mint: #059669;
-  --color-amber: #d97706;
-  --color-rose: #e11d48;
+  --color-mint: #16a34a;
+  --color-amber: #c2700a;
+  --color-rose: #e5484d;
   /* 编程段位赛的段位色 */
   --color-bronze: #b0602f;
   --color-silver: #7b879f;
@@ -76,74 +76,45 @@
     line-height: 1.6;
   }
   ::selection {
-    background: rgb(124 58 237 / 20%);
+    background: rgb(23 23 23 / 12%);
   }
   :focus-visible {
-    outline: 2px solid var(--color-cyan);
+    outline: 2px solid var(--color-blue);
     outline-offset: 2px;
   }
   dialog::backdrop {
-    background: rgb(15 20 48 / 28%);
-    backdrop-filter: blur(8px);
+    background: rgb(0 0 0 / 35%);
+    backdrop-filter: blur(2px);
   }
 }
 
+/* 「信号」：原来是光谱渐变，换成中性灰后改成墨色的明暗流动 */
 @utility spectrum-bg {
   background-image: linear-gradient(
     90deg,
-    var(--color-violet),
-    var(--color-blue),
-    var(--color-cyan),
-    var(--color-mint),
-    var(--color-cyan),
-    var(--color-blue),
-    var(--color-violet)
+    var(--color-ink),
+    color-mix(in oklab, var(--color-ink) 62%, white),
+    var(--color-ink)
   );
   background-size: 200% 100%;
 }
 
 @utility spectrum-text {
-  background-image: linear-gradient(
-    100deg,
-    var(--color-violet),
-    var(--color-blue) 35%,
-    var(--color-cyan) 65%,
-    var(--color-mint)
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--color-ink);
 }
 
-/* 背景：顶部一抹淡淡的光谱晕染，运行时变浓 */
+/* 背景：纯色纸面，不加晕染 */
 .field-bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(48rem 22rem at 12% -6%, rgb(124 58 237 / 12%), transparent 65%),
-    radial-gradient(44rem 20rem at 55% -10%, rgb(37 99 235 / 9%), transparent 65%),
-    radial-gradient(40rem 20rem at 95% -4%, rgb(8 145 178 / 10%), transparent 65%), var(--color-paper);
-  transition: opacity 0.6s;
-}
-.field-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity 0.8s;
-  background:
-    radial-gradient(56rem 26rem at 12% -6%, rgb(124 58 237 / 16%), transparent 65%),
-    radial-gradient(52rem 24rem at 90% -6%, rgb(8 145 178 / 16%), transparent 65%);
-}
-body.is-running .field-bg::after {
-  opacity: 1;
+  background: var(--color-paper);
 }
 
 /* 鹈鹕绘制中：扫描线 */
 .scanline {
-  background: linear-gradient(transparent, rgb(124 58 237 / 14%) 46%, rgb(8 145 178 / 55%) 50%, transparent 54%);
+  background: linear-gradient(transparent, rgb(23 23 23 / 6%) 46%, rgb(0 112 243 / 40%) 50%, transparent 54%);
   background-size: 100% 240%;
   animation: var(--animate-scan);
 }

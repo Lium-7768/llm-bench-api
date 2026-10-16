@@ -266,7 +266,7 @@ export default function Home() {
       open={configOpen}
       onClose={() => setConfigOpen(false)}
       title="被测接口"
-      icon={<Settings2 size={18} className="text-violet" />}
+      icon={<Settings2 size={18} className="text-ink" />}
     >
       {error && <p className="mb-4 rounded-xl bg-rose/8 px-4 py-2.5 text-sm text-rose">{error}</p>}
       <ConfigPanel />
@@ -314,7 +314,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setConfigOpen(true)}
-                className="group flex min-w-0 flex-1 items-center gap-4 rounded-2xl border border-line bg-paper px-4 py-3 text-left transition hover:border-violet/40 hover:bg-surface"
+                className="group flex min-w-0 flex-1 items-center gap-4 rounded-2xl border border-line bg-paper px-4 py-3 text-left transition hover:border-ink/25 hover:bg-surface"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs text-readout">{preset?.name ?? "自定义"}</span>
@@ -325,7 +325,7 @@ export default function Home() {
                 </span>
                 <Settings2
                   size={20}
-                  className="shrink-0 text-readout transition duration-500 group-hover:rotate-90 group-hover:text-violet"
+                  className="shrink-0 text-readout transition duration-500 group-hover:rotate-90 group-hover:text-ink"
                   aria-label="配置接口"
                 />
               </button>
@@ -337,9 +337,9 @@ export default function Home() {
                 title="开始检测"
                 whileHover={{ scale: 1.06 }}
                 whileTap={{ scale: 0.94 }}
-                className="relative mx-auto grid size-16 shrink-0 animate-flow place-items-center rounded-full spectrum-bg text-white shadow-[0_0_0_1px_rgb(255_255_255/0.35)_inset,0_14px_34px_-8px_rgb(124_58_237/0.65),0_0_44px_-12px_rgb(8_145_178/0.55)] sm:mx-0"
+                className="relative mx-auto grid size-16 shrink-0 animate-flow place-items-center rounded-full spectrum-bg text-white shadow-[0_0_0_1px_rgb(255_255_255/0.35)_inset,0_14px_30px_-10px_rgb(0_0_0/0.45)] sm:mx-0"
               >
-                <span className="absolute inset-0 animate-ping rounded-full bg-violet/20 [animation-duration:2.4s]" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-ink/15 [animation-duration:2.4s]" />
                 <Play size={26} fill="currentColor" className="relative ml-1" />
               </motion.button>
             </div>
@@ -399,7 +399,7 @@ export default function Home() {
                 : "检测完成"}
             </motion.p>
           </AnimatePresence>
-          <h1 className="mt-1 spectrum-text font-display text-3xl font-bold break-all sm:text-4xl">{config.model}</h1>
+          <h1 className="mt-1 font-display text-3xl font-bold break-all spectrum-text sm:text-4xl">{config.model}</h1>
         </div>
         {phase === "running" && (
           <div className="flex items-center gap-7">
